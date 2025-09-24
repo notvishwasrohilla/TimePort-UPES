@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "TimePort UPES",
   "description": "Detects timetable on myupes portal and offers Add to Google Calendar.",
-  "version": "1.0.0",
-  
+  "version": "0.2",
+
   "permissions": [
     "scripting",
     "storage",

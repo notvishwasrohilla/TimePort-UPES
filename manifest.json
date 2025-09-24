@@ -1,11 +1,11 @@
 {
   "manifest_version": 3,
-  "name": "Timetable Scraper",
+  "name": "TimePort UPES",
   "version": "1.0",
   "description": "Scrapes the daily timetable from the student portal and displays it.",
   "permissions": ["activeTab", "scripting"],
   "host_permissions": [
-    "<all_urls>"
+    "https://myupes-beta.upes.ac.in/*"
   ],
   "action": {
     "default_popup": "popup.html",
@@ -21,3 +21,4 @@
     "128": "images/icon128.png"
   }
 }
+

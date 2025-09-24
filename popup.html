@@ -1,53 +1,25 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
 <head>
+  <meta charset="utf-8" />
   <title>TimePort UPES</title>
-  <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      width: 350px;
-      padding: 10px;
-      background-color: #f9f9f9;
-    }
-    h1 {
-      font-size: 18px;
-      color: #333;
-      text-align: center;
-      margin-top: 5px;
-      margin-bottom: 15px;
-    }
-    #timetable-container {
-      border-top: 1px solid #ddd;
-    }
-    .session {
-      padding: 10px;
-      border-bottom: 1px solid #ddd;
-    }
-    .session:last-child {
-      border-bottom: none;
-    }
-    .session-name {
-      font-weight: bold;
-      color: #0056b3;
-    }
-    .session-time {
-      font-size: 14px;
-      color: #555;
-      margin-top: 4px;
-    }
-    #message {
-      text-align: center;
-      color: #888;
-      padding: 20px;
-    }
-  </style>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="popup.css" />
 </head>
 <body>
-  <h1>TimePort UPES - Daily Schedule</h1>
-  <div id="timetable-container">
-    <p id="message">Loading schedule...</p>
+  <div class="container">
+    <h3>TimePort UPES</h3>
+    <p class="muted">Detected today's sessions on myupes-beta.upes.ac.in</p>
+
+    <div id="sessions-list">Loading sessions from active tab...</div>
+
+    <div class="actions">
+      <button id="add-selected" class="btn">Add selected</button>
+      <button id="add-all" class="btn primary">Add all</button>
+    </div>
+    <p class="muted small">Each event opens Google Calendar's event editor for confirmation.</p>
   </div>
+
   <script src="popup.js"></script>
 </body>
 </html>
-

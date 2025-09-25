@@ -1,24 +1,23 @@
-<!doctype html>
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
+  <meta charset="UTF-8" />
   <title>TimePort UPES</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <link rel="stylesheet" href="popup.css" />
 </head>
 <body>
-  <div class="container">
-    <h3>TimePort UPES</h3>
-    <p class="muted">Detected today's sessions on myupes-beta.upes.ac.in</p>
+  <header>
+    <h1>TimePort UPES</h1>
+  </header>
 
-    <div id="sessions-list">Loading sessions from active tab...</div>
+  <main>
+    <!-- This is the container popup.js will fill -->
+    <div id="sessionsList">Loading sessions from active tab....</div>
+  </main>
 
-    <div class="actions">
-      <button id="add-selected" class="btn">Add selected</button>
-      <button id="add-all" class="btn primary">Add all</button>
-    </div>
-    <p class="muted small">Each event opens Google Calendar's event editor for confirmation.</p>
-  </div>
+  <footer>
+    <small>TimePort UPES Extension</small>
+  </footer>
 
   <script src="popup.js"></script>
 </body>

@@ -1,138 +1,159 @@
-// popup.js
-document.addEventListener('DOMContentLoaded', async () => {
-  const sessionsListEl = document.getElementById('sessions-list');
-  const addSelectedBtn = document.getElementById('add-selected');
-  const addAllBtn = document.getElementById('add-all');
+document.addEventListener("DOMContentLoaded", () => {
+  const sessionsListEl = document.getElementById("sessionsList");
 
-  // Injected function to run inside page to return session objects (same logic as content script)
-  const extractSessionsFn = () => {
-    function parseTimeRange(timeStr) {
-      timeStr = (timeStr || '').trim();
-      const parts = timeStr.split('-').map(s => s.trim());
-      if (parts.length !== 2) return null;
-      return { start: parts[0], end: parts[1] };
-    }
+  // This function runs in the context of the portal tab
+  function extractSessions() {
+    try {
+      const sessionNodes = document.querySelectorAll(
+        ".session-info-container ul li"
+      );
 
-    function gather() {
-      const nodes = Array.from(document.querySelectorAll('li.course-red-wrapper'));
-      const today = new Date();
-      return nodes.map(node => {
-        const titleEl = node.querySelector('b');
-        const title = titleEl ? titleEl.textContent.trim() : 'Untitled Session';
-        const p = node.querySelector('p');
-        const timeText = p ? p.textContent.trim() : '';
-        const timeRange = parseTimeRange(timeText);
-        const linkEl = node.querySelector('a.session-link');
-        const joinUrl = linkEl ? linkEl.href : '';
-        const span = node.querySelector('span');
-        const code = span ? span.textContent.trim() : '';
-        return { title, code, timeText, start: timeRange ? timeRange.start : null, end: timeRange ? timeRange.end : null, joinUrl };
+      const sessions = [];
+      sessionNodes.forEach((node) => {
+        const title = node.querySelector("b")?.innerText.trim() || "Untitled";
+
+        // ✅ Get only the raw time text (the firstChild of <p>)
+        const timeEl = node.querySelector("p");
+        let timeText = "";
+        if (timeEl && timeEl.firstChild) {
+          timeText = timeEl.firstChild.textContent.trim();
+        }
+
+        const link = node.querySelector("a")?.href || "";
+
+        // Extract start/end times (split on '-')
+        let start = "";
+        let end = "";
+        if (timeText.includes("-")) {
+          const parts = timeText.split("-");
+          start = parts[0].trim();
+          end = parts[1]?.trim() || "";
+        }
+
+        sessions.push({
+          title,
+          time: timeText, // ✅ clean time, no injected buttons
+          start,
+          end,
+          link,
+        });
       });
-    }
-    return gather();
-  };
 
-  // Execute in active tab
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab) {
-    sessionsListEl.textContent = 'No active tab.';
-    return;
+      return sessions;
+    } catch (err) {
+      console.error("extractSessions error:", err);
+      return [];
+    }
   }
 
-  try {
-    const results = await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      func: extractSessionsFn
-    });
+  // Ask Chrome for the active tab
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    const tab = tabs[0];
 
-    const sessions = (results && results[0] && results[0].result) || [];
-    if (!sessions || sessions.length === 0) {
-      sessionsListEl.innerHTML = '<div class="muted">No sessions found on this page. Make sure you are viewing the "Today\'s Sessions" tab on the portal.</div>';
-      addSelectedBtn.disabled = true;
-      addAllBtn.disabled = true;
-      return;
-    }
+    if (
+      tab &&
+      tab.url &&
+      tab.url.startsWith("https://myupes-beta.upes.ac.in")
+    ) {
+      // Inject the extractor into the portal tab
+      chrome.scripting.executeScript(
+        {
+          target: { tabId: tab.id },
+          func: extractSessions,
+        },
+        (injectionResults) => {
+          if (chrome.runtime.lastError) {
+            console.error("Injection error:", chrome.runtime.lastError.message);
+            sessionsListEl.innerHTML =
+              '<div class="muted">Error: Unable to run on this page.</div>';
+            return;
+          }
 
-    // render checkboxes
-    sessionsListEl.innerHTML = '';
-    sessions.forEach((s, i) => {
-      const div = document.createElement('div');
-      div.className = 'session-item';
-      div.innerHTML = `
-        <input type="checkbox" data-idx="${i}" id="s_${i}" checked />
-        <div style="flex:1">
-          <div class="session-title">${escapeHtml(s.title)}</div>
-          <div class="session-meta">${escapeHtml(s.timeText || '')} ${s.joinUrl ? ' • <a target="_blank" href="'+escapeAttr(s.joinUrl)+'">Join</a>' : ''}</div>
-        </div>
-      `;
-      sessionsListEl.appendChild(div);
-    });
+          if (!injectionResults || !injectionResults[0].result.length) {
+            sessionsListEl.innerHTML =
+              '<div class="muted">No sessions found. Make sure you are on "Today\'s Sessions" tab.</div>';
+            return;
+          }
 
-    // helper to escape
-    function escapeHtml(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-    function escapeAttr(s){ return (s||'').replace(/"/g, '&quot;'); }
+          const sessions = injectionResults[0].result;
+          sessionsListEl.innerHTML = "";
 
-    // Build calendar URL function (same as content script but client-side)
-    function localDateTimeToUTCString(dateObj, hhmmAMPM) {
-      const m = hhmmAMPM.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
-      if (!m) return null;
-      let hour = parseInt(m[1], 10);
-      const minute = parseInt(m[2], 10);
-      const ampm = m[3].toUpperCase();
-      if (ampm === 'PM' && hour !== 12) hour += 12;
-      if (ampm === 'AM' && hour === 12) hour = 0;
-      const local = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate(), hour, minute, 0, 0);
-      const YYYY = local.getUTCFullYear();
-      const MM = String(local.getUTCMonth() + 1).padStart(2, '0');
-      const DD = String(local.getUTCDate()).padStart(2, '0');
-      const hh = String(local.getUTCHours()).padStart(2, '0');
-      const mm = String(local.getUTCMinutes()).padStart(2, '0');
-      const ss = String(local.getUTCSeconds()).padStart(2, '0');
-      return `${YYYY}${MM}${DD}T${hh}${mm}${ss}Z`;
-    }
-    function buildGoogleCalendarUrl({title, details, location, startISOutc, endISOutc}) {
-      const base = 'https://calendar.google.com/calendar/u/0/r/eventedit';
-      const params = new URLSearchParams();
-      params.set('text', title || '');
-      if (details) params.set('details', details);
-      if (location) params.set('location', location);
-      params.set('dates', `${startISOutc}/${endISOutc}`);
-      return `${base}?${params.toString()}`;
-    }
+          sessions.forEach((session) => {
+            const item = document.createElement("div");
+            item.className = "session-item";
+            item.innerHTML = `
+              <div class="session-title">${session.title}</div>
+              <div class="session-time">${session.time}</div>
+              <div class="session-actions">
+                <a href="${session.link}" target="_blank">Join</a>
+                <button class="add-to-calendar">➕ Add to Google Calendar</button>
+              </div>
+            `;
 
-    // add selected
-    addSelectedBtn.addEventListener('click', async () => {
-      const checkboxes = Array.from(document.querySelectorAll('#sessions-list input[type=checkbox]'));
-      const chosenIdx = checkboxes.filter(cb => cb.checked).map(cb => parseInt(cb.dataset.idx,10));
-      if (chosenIdx.length === 0) { alert('Select at least one session.'); return; }
-      // we will open a tab per selected event
-      chosenIdx.forEach((idx, i) => {
-        const s = sessions[idx];
-        if (!s.start || !s.end) {
-          console.warn('Skipping unparsable time', s);
-          return;
+            // Calendar button click
+            item
+              .querySelector(".add-to-calendar")
+              .addEventListener("click", () => {
+                const gcalUrl = new URL(
+                  "https://calendar.google.com/calendar/render"
+                );
+                gcalUrl.searchParams.set("action", "TEMPLATE");
+                gcalUrl.searchParams.set("text", session.title);
+                gcalUrl.searchParams.set(
+                  "dates",
+                  convertToGCalDate(session.start, session.end)
+                );
+                gcalUrl.searchParams.set(
+                  "details",
+                  `Class link: ${session.link}`
+                );
+                gcalUrl.searchParams.set("location", "UPES Portal");
+
+                window.open(gcalUrl.toString(), "_blank");
+              });
+
+            sessionsListEl.appendChild(item);
+          });
         }
-        const startISO = localDateTimeToUTCString(new Date(), s.start);
-        const endISO = localDateTimeToUTCString(new Date(), s.end);
-        const details = `${s.code || ''}\nJoin URL: ${s.joinUrl || 'N/A'}`;
-        const url = buildGoogleCalendarUrl({title: s.title, details, location: s.joinUrl || '', startISOutc: startISO, endISOutc: endISO});
-        window.open(url, '_blank');
-      });
-    });
+      );
+    } else {
+      // Not on the portal tab
+      sessionsListEl.innerHTML =
+        '<div class="muted">Please open the myUPES portal on "Today\'s Sessions" tab.</div>';
+    }
+  });
 
-    addAllBtn.addEventListener('click', () => {
-      sessions.forEach((s, i) => {
-        if (!s.start || !s.end) return;
-        const startISO = localDateTimeToUTCString(new Date(), s.start);
-        const endISO = localDateTimeToUTCString(new Date(), s.end);
-        const details = `${s.code || ''}\nJoin URL: ${s.joinUrl || 'N/A'}`;
-        const url = buildGoogleCalendarUrl({title: s.title, details, location: s.joinUrl || '', startISOutc: startISO, endISOutc: endISO});
-        setTimeout(() => window.open(url, '_blank'), i * 300);
-      });
-    });
+  // Helper: Convert "08:00 AM" → Google Calendar time format
+  function convertToGCalDate(startTime, endTime) {
+    const today = new Date();
+    const [startH, startM, startAP] = parseTime(startTime);
+    const [endH, endM, endAP] = parseTime(endTime);
 
-  } catch (err) {
-    sessionsListEl.innerHTML = '<div class="muted">Error extracting sessions. Make sure the portal is open in the active tab and you are on the "Today\'s Sessions" tab.</div>';
-    console.error('popup error:', err);
+    const startDate = new Date(today);
+    startDate.setHours(
+      startAP === "PM" && startH < 12 ? startH + 12 : startH,
+      startM,
+      0
+    );
+
+    const endDate = new Date(today);
+    endDate.setHours(
+      endAP === "PM" && endH < 12 ? endH + 12 : endH,
+      endM,
+      0
+    );
+
+    return formatDateForGCal(startDate) + "/" + formatDateForGCal(endDate);
+  }
+
+  function parseTime(timeStr) {
+    if (!timeStr) return [0, 0, "AM"];
+    const match = timeStr.match(/(\d{1,2}):(\d{2})\s?(AM|PM)/i);
+    if (!match) return [0, 0, "AM"];
+    return [parseInt(match[1]), parseInt(match[2]), match[3].toUpperCase()];
+  }
+
+  function formatDateForGCal(date) {
+    return date.toISOString().replace(/-|:|\.\d+/g, "");
   }
 });

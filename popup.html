@@ -4,32 +4,99 @@
     <meta charset="utf-8" />
     <title>TimePort UPES</title>
     <style>
-      body { font-family: Arial, sans-serif; width: 360px; padding: 12px; }
-      h3 { margin: 4px 0 10px; }
-      #status { margin-bottom: 10px; color: #222; }
-      button { padding: 8px 10px; margin-right: 8px; cursor: pointer; }
-      .hint { font-size: 12px; color: #666; margin-top: 8px; }
-      .session { border-bottom: 1px solid #eee; padding: 6px 0; }
-      .title { font-weight: 600; }
-      .meta { font-size: 12px; color: #444; }
+      :root {
+        --bg: #fff;
+        --muted: #666;
+        --accent: #006097;
+        --danger: #c03;
+        --success: #2a9d3a;
+        --warning: #f4c430;
+      }
+      html,body { margin:0; padding:0; background:var(--bg); font-family:Inter, Roboto, Arial, sans-serif; color:#222; }
+      .container { width:380px; padding:12px; box-sizing:border-box; }
+      header { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+      h3 { margin:0; font-size:16px; }
+      .statusRow { display:flex; align-items:center; gap:8px; margin-top:8px; }
+      .statusDot { width:12px; height:12px; border-radius:50%; background:#999; box-shadow:0 0 0 2px rgba(0,0,0,0.03) inset; }
+      #status { font-size:13px; color:var(--muted); }
+
+      /* button row */
+      .controls { display:flex; gap:8px; margin-top:10px; align-items:center; flex-wrap:wrap; }
+      .controls button {
+        padding:8px 10px;
+        border:0;
+        border-radius:8px;
+        background:#f2f4f6;
+        cursor:pointer;
+        font-size:13px;
+      }
+      .controls button.primary {
+        background:var(--accent);
+        color:#fff;
+      }
+      .controls button.ghost {
+        background:transparent;
+        border:1px solid #eee;
+      }
+
+      /* small helpers */
+      .hint { font-size:12px; color:var(--muted); margin-top:8px; }
+      hr { border:0; border-top:1px solid #eee; margin:10px 0; }
+
+      /* session list */
+      #list { max-height:320px; overflow:auto; padding-right:6px; }
+      .session { border-bottom:1px solid #f0f0f0; padding:8px 0; }
+      .session .title { font-weight:700; font-size:13px; }
+      .session .meta { font-size:12px; color:var(--muted); margin-top:6px; display:flex; justify-content:space-between; gap:8px; }
+
+      /* result text */
+      #result { margin-top:8px; font-size:13px; }
+
+      /* spinner */
+      .spinner {
+        width:14px; height:14px;
+        border-radius:50%;
+        border:2px solid rgba(255,255,255,0.4);
+        border-top-color:rgba(255,255,255,0.9);
+        animation:spin 1s linear infinite;
+        display:inline-block;
+      }
+      @keyframes spin { to { transform:rotate(360deg); } }
+
+      /* responsive tiny */
+      @media (max-width:400px) {
+        .container { width:340px; }
+      }
     </style>
   </head>
   <body>
-    <h3>TimePort UPES</h3>
-    <div id="status">Not connected</div>
+    <div class="container">
+      <header>
+        <h3>TimePort UPES</h3>
+        <div style="text-align:right">
+          <div id="connectionIndicator" class="statusRow">
+            <div id="statusDot" class="statusDot" title="connection state"></div>
+          </div>
+        </div>
+      </header>
 
-    <div id="controls">
-      <button id="connectBtn">Connect to Google</button>
-      <button id="syncBtn" disabled>Sync (coming soon)</button>
-      <button id="disconnectBtn" style="display:none">Sign out</button>
-      <button id="showLocalBtn">Show Timetable</button>
+      <div class="statusRow" style="justify-content:flex-start;">
+        <div id="status">Not connected</div>
+      </div>
+
+      <div class="controls" role="toolbar" aria-label="controls">
+        <button id="connectBtn" class="primary">Connect to Google</button>
+        <button id="syncBtn" class="primary" disabled>Sync</button>
+        <button id="disconnectBtn" style="display:none">Sign out</button>
+        <button id="showLocalBtn" class="ghost">Show Timetable</button>
+      </div>
+
+      <div class="hint">Phase 2: Calendar sync. Events are created in your primary calendar.</div>
+      <hr>
+
+      <div id="result" aria-live="polite"></div>
+      <div id="list"></div>
     </div>
-
-    <div class="hint">Phase 1: Sign-in only. Calendar sync will be added next.</div>
-
-    <hr>
-
-    <div id="list"></div>
 
     <script src="popup.js"></script>
   </body>

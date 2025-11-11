@@ -1,0 +1,39 @@
+{
+  "manifest_version": 3,
+  "name": "TimePort UPES",
+  "version": "0.3",
+  "description": "TimePort UPES – reads timetable and supports Google sign-in (Phase 1).",
+  "permissions": [
+    "identity",
+    "scripting",
+    "activeTab",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://myupes-beta.upes.ac.in/*"
+  ],
+  "oauth2": {
+    "client_id": "887400701013-rlcudhl3sm36usbpckc9qp9d1nv0sgff.apps.googleusercontent.com",
+    "scopes": [
+      "openid",
+      "https://www.googleapis.com/auth/userinfo.email",
+      "https://www.googleapis.com/auth/userinfo.profile",
+      "https://www.googleapis.com/auth/calendar",
+      "https://www.googleapis.com/auth/calendar.events"
+    ]
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "TimePort UPES"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://myupes-beta.upes.ac.in/*"],
+      "js": ["contentScript.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

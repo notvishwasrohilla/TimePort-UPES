@@ -1,366 +1,149 @@
-// popup.js — UI tweaks: hide connect when connected, align status dot/text,
-// auto-show timetable, auto-reconnect and courseLine cleaning
-document.addEventListener('DOMContentLoaded', () => {
-  // Elements
-  const connectBtn = document.getElementById('connectBtn');
-  const disconnectBtn = document.getElementById('disconnectBtn');
-  const syncBtn = document.getElementById('syncBtn');
-  const statusDiv = document.getElementById('status');
-  const listDiv = document.getElementById('list');
-  const resultDiv = document.getElementById('result');
-  const statusDot = document.getElementById('statusDot');
+document.addEventListener("DOMContentLoaded", () => {
+  const connectBtn=document.getElementById("connectBtn"),
+        syncBtn=document.getElementById("syncBtn"),
+        disconnectBtn=document.getElementById("disconnectBtn"),
+        statusDot=document.getElementById("statusDot"),
+        statusText=document.getElementById("status"),
+        list=document.getElementById("list"),
+        result=document.getElementById("result");
 
-  // Safety
-  if (!connectBtn || !syncBtn || !statusDiv || !statusDot) {
-    console.error('popup: missing elements');
-    return;
-  }
+  const setStatus=(t,c="#666")=>{statusText.textContent=t;statusDot.style.background=c;}
+  const show=(el,vis)=>el.style.display=vis?"inline-block":"none";
 
-  // Config
-  const RECONNECT_INTERVAL_MS = 45_000;
-  let reconnectTimer = null;
-
-  // UI helpers
-  function setStatus(text) { statusDiv.textContent = text; }
-  function setIndicator(color) { statusDot.style.background = color; }
-  function showResult(text, isError=false) {
-    resultDiv.textContent = text; resultDiv.style.color = isError ? '#a00' : '#070';
-  }
-  function showConnectButton(visible) {
-    connectBtn.style.display = visible ? 'inline-block' : 'none';
-  }
-
-  // courseLine cleaning
-  function cleanCourseLine(raw) {
-    if (!raw) return '';
-    let t = raw.replace(/\+\d+/g, '').trim();
-    const parts = t.split('_');
-    return parts[0].trim();
-  }
-
-  // --- auth helpers ---
-  async function getAuthToken(interactive = true) {
-    return new Promise((resolve, reject) => {
-      try {
-        chrome.identity.getAuthToken({ interactive }, (token) => {
-          if (chrome.runtime.lastError) {
-            reject(new Error(chrome.runtime.lastError.message));
-          } else {
-            resolve(token);
-          }
-        });
-      } catch (err) {
-        reject(err);
-      }
+  async function getToken(interactive=true){
+    return new Promise((res,rej)=>{
+      chrome.runtime.sendMessage({action:"get_token"},r=>{
+        if(!r||!r.success)rej(new Error(r?r.error:"no token"));else res(r.token);
+      });
     });
   }
 
-  async function fetchUserInfo(token) {
-    const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    if (!res.ok) throw new Error('Failed fetching userinfo: ' + res.status);
-    return res.json();
+  async function getUser(token){
+    const r=await fetch("https://www.googleapis.com/oauth2/v3/userinfo",{headers:{Authorization:`Bearer ${token}`}});
+    return await r.json();
   }
 
-  async function revokeToken(token) {
-    await fetch(`https://oauth2.googleapis.com/revoke?token=${token}`, {
-      method: 'POST',
-      headers: { 'Content-type': 'application/x-www-form-urlencoded' }
-    });
-    return new Promise((resolve) => {
-      chrome.identity.removeCachedAuthToken({ token }, () => resolve());
-    });
+  async function revoke(token){
+    await fetch(`https://oauth2.googleapis.com/revoke?token=${token}`,{method:"POST"});
+    chrome.identity.removeCachedAuthToken({token});
   }
 
-  // time helpers
-  function parseTime12h(str) {
-    const m = (str || '').trim().match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
-    if (!m) return null;
-    let hh = parseInt(m[1], 10); const mm = parseInt(m[2], 10);
-    const ampm = m[3].toUpperCase();
-    if (ampm === 'AM' && hh === 12) hh = 0;
-    if (ampm === 'PM' && hh !== 12) hh += 12;
-    return { hours: hh, minutes: mm };
-  }
-  function buildISOForToday(timeStr) {
-    const t = parseTime12h(timeStr);
-    if (!t) return null;
-    const now = new Date();
-    const dt = new Date(now.getFullYear(), now.getMonth(), now.getDate(), t.hours, t.minutes, 0, 0);
-    return dt.toISOString();
-  }
-
-  // get timetable from content script
-  async function getTimetableFromActiveTab() {
-    return new Promise((resolve) => {
-      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        if (!tabs || tabs.length === 0) {
-          resolve({ sessions: [], error: 'no-active-tab' });
-          return;
-        }
-        chrome.tabs.sendMessage(tabs[0].id, { action: 'getTimetable' }, (response) => {
-          if (chrome.runtime.lastError) {
-            resolve({ sessions: [], error: chrome.runtime.lastError.message });
-          } else {
-            resolve(response || { sessions: [] });
-          }
+  async function getTimetable(){
+    return new Promise(r=>{
+      chrome.tabs.query({active:true,currentWindow:true},tabs=>{
+        if(!tabs.length)return r({sessions:[],error:"no tab"});
+        chrome.tabs.sendMessage(tabs[0].id,{action:"getTimetable"},resp=>{
+          r(resp||{sessions:[]});
         });
       });
     });
   }
 
-  // create calendar event
-  async function createCalendarEvent(token, event) {
-    const res = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(event)
+  function render(sessions){
+    list.innerHTML="";
+    if(!sessions.length){list.textContent="No sessions found.";return;}
+    sessions.forEach(s=>{
+      const d=document.createElement("div");
+      d.className="session";
+      d.innerHTML=`<div class="title">${s.title}</div>
+                   <div class="meta"><span>${s.timeText||""}</span><span>Room: ${s.room||"-"}</span></div>`;
+      list.appendChild(d);
     });
-    if (!res.ok) {
-      const txt = await res.text();
-      throw new Error(`Calendar insert failed (${res.status}): ${txt}`);
-    }
-    return res.json();
   }
 
-  // connection check + auto-reconnect
-  async function checkConnectionAndUpdate() {
-    try {
-      const token = await getAuthToken(false);
-      if (!token) throw new Error('no-token');
-      await fetchUserInfo(token);
-      setIndicator('var(--success)');
-      setStatus('Connected');
-      showConnectButton(false);
-      syncBtn.disabled = false;
-      disconnectBtn.style.display = 'inline-block';
-      showResult('Connection healthy');
-      return true;
-    } catch (err) {
-      console.warn('Connection check failed:', err && err.message);
-      setIndicator('var(--warning)');
-      setStatus('Connection lost — reconnecting...');
-      showConnectButton(false); // keep hidden while attempting auto reconnect
-      try {
-        const token2 = await getAuthToken(true);
-        if (token2) {
-          await fetchUserInfo(token2);
-          setIndicator('var(--success)');
-          setStatus('Reconnected');
-          syncBtn.disabled = false;
-          disconnectBtn.style.display = 'inline-block';
-          showResult('Reconnected automatically');
-          return true;
-        }
-      } catch (reauthErr) {
-        console.warn('Auto reauth failed:', reauthErr && reauthErr.message);
-        setIndicator('#c03');
-        setStatus('Not connected');
-        showConnectButton(true);
-        syncBtn.disabled = true;
-        disconnectBtn.style.display = 'none';
-        showResult('Connection lost — please reconnect', true);
-        return false;
-      }
-    }
+  function parseTime(str){
+    const m=str.match(/(\d+):(\d+)\s*(AM|PM)/i);
+    let h=+m[1];const mi=+m[2];const ampm=m[3].toUpperCase();
+    if(ampm==="PM"&&h!==12)h+=12;if(ampm==="AM"&&h===12)h=0;
+    return{h,mi};
   }
 
-  function startReconnectPolling() {
-    if (reconnectTimer) return;
-    reconnectTimer = setInterval(() => {
-      checkConnectionAndUpdate().catch(e => console.warn('poll err', e));
-    }, RECONNECT_INTERVAL_MS);
-  }
-  function stopReconnectPolling() {
-    if (reconnectTimer) { clearInterval(reconnectTimer); reconnectTimer = null; }
-  }
+  async function syncCalendar(){
+    result.textContent="Preparing sync...";
+    setStatus("Fetching sessions...","#999");
 
-  // sync flow (clean courseLine)
-  async function syncTimetableToCalendar() {
-    showResult('');
-    setStatus('Preparing sync...');
-    syncBtn.disabled = true;
-    connectBtn.disabled = true;
-
-    const { sessions, error } = await getTimetableFromActiveTab();
-    if (error) {
-      showResult('Error reading timetable: ' + error, true);
-      syncBtn.disabled = false; connectBtn.disabled = false;
-      return;
-    }
-    if (!sessions || sessions.length === 0) {
-      showResult('No sessions found on this page.', true);
-      syncBtn.disabled = false; connectBtn.disabled = false;
-      return;
+    const {sessions}=await getTimetable();
+    if(!sessions.length){
+      result.textContent="No sessions found.";return;
     }
 
-    let token;
-    try {
-      token = await getAuthToken(false);
-      if (!token) token = await getAuthToken(true);
-    } catch (e) {
-      showResult('Auth failed: ' + (e.message || e), true);
-      syncBtn.disabled = false; connectBtn.disabled = false;
-      return;
-    }
+    const token=await getToken(false).catch(()=>getToken(true));
+    const tz=Intl.DateTimeFormat().resolvedOptions().timeZone||"Asia/Kolkata";
+    let created=0,failed=0;
 
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata';
-    let successes = 0, failures = 0;
-    const results = [];
+    for(let i=0;i<sessions.length;i++){
+      const s=sessions[i];
+      const match=s.timeText.match(/(\d{1,2}:\d{2}\s*(?:AM|PM))\s*-\s*(\d{1,2}:\d{2}\s*(?:AM|PM))/i);
+      if(!match){failed++;continue;}
+      const [_,st,et]=match;
+      const ns=new Date(),a=parseTime(st),b=parseTime(et);
+      const start=new Date(ns.getFullYear(),ns.getMonth(),ns.getDate(),a.h,a.mi);
+      const end=new Date(ns.getFullYear(),ns.getMonth(),ns.getDate(),b.h,b.mi);
 
-    for (let i = 0; i < sessions.length; ++i) {
-      const s = sessions[i];
-      const cleanedCourseCode = cleanCourseLine(s.courseLine);
-      const startISO = buildISOForToday(s.startTime || (s.timeText ? s.timeText.split('-')[0].trim() : ''));
-      const endISO = buildISOForToday(s.endTime || (s.timeText ? s.timeText.split('-')[1].trim() : ''));
-
-      if (!startISO || !endISO) {
-        failures++; results.push({ session: s, error: 'invalid time format' }); continue;
-      }
-
-      const event = {
-        summary: s.title || 'Class',
-        location: s.room || s.roomRaw || '',
-        description: cleanedCourseCode || s.courseLine || '',
-        start: { dateTime: startISO, timeZone: tz },
-        end: { dateTime: endISO, timeZone: tz }
+      const ev={
+        summary:s.title,
+        location:s.room||"",
+        description:(s.courseLine||"").split("_")[0],
+        start:{dateTime:start.toISOString(),timeZone:tz},
+        end:{dateTime:end.toISOString(),timeZone:tz}
       };
 
-      try {
-        setStatus(`Creating event ${i+1}/${sessions.length}: ${event.summary}`);
-        const created = await createCalendarEvent(token, event);
-        successes++; results.push({ session: s, created });
-        await new Promise(r => setTimeout(r, 200));
-      } catch (err) {
-        const msg = (err && err.message) ? err.message : String(err);
-        console.warn('Event create error:', msg);
-        if (msg.includes('401') || msg.toLowerCase().includes('unauthorized')) {
-          try {
-            await new Promise(res => chrome.identity.removeCachedAuthToken({ token }, res));
-            token = await getAuthToken(true);
-            const created = await createCalendarEvent(token, event);
-            successes++; results.push({ session: s, created });
-            continue;
-          } catch (retryErr) {
-            failures++; results.push({ session: s, error: retryErr.message || String(retryErr) }); continue;
-          }
-        } else {
-          failures++; results.push({ session: s, error: msg });
-        }
-      }
+      // progress feedback
+      setStatus(`Creating event ${i+1}/${sessions.length}: ${ev.summary}`,"#006097");
+      result.textContent=`Creating event ${i+1}/${sessions.length}: ${ev.summary}`;
+
+      try{
+        const r=await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events",{
+          method:"POST",
+          headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},
+          body:JSON.stringify(ev)
+        });
+        if(r.ok){created++;}else{failed++;}
+      }catch{failed++;}
+      await new Promise(r=>setTimeout(r,200));
     }
 
-    setStatus(`Sync complete — ${successes} created, ${failures} failed.`);
-    showResult(`Sync complete — ${successes} created, ${failures} failed.`);
-    syncBtn.disabled = false; connectBtn.disabled = false;
-
-    listDiv.innerHTML = '';
-    results.forEach(r => {
-      const d = document.createElement('div'); d.className = 'session';
-      const t = document.createElement('div'); t.className = 'title';
-      t.textContent = r.session ? (r.session.title || r.session.timeText) : '(unknown)';
-      const sdiv = document.createElement('div'); sdiv.className = 'meta';
-      sdiv.textContent = r.created ? `Created: ${r.created.summary || r.created.id}` : `Error: ${r.error}`;
-      d.appendChild(t); d.appendChild(sdiv); listDiv.appendChild(d);
-    });
-
-    chrome.storage.local.set({ last_sync_results: results }, () => {});
+    // final result
+    const msg=`Sync complete — ${created} created, ${failed} failed.`;
+    result.textContent=msg;
+    setStatus(msg, failed? "#f4c430":"#2a9d3a");
   }
 
-  // UI handlers
-  connectBtn.addEventListener('click', async () => {
-    setStatus('Opening Google sign-in...');
-    connectBtn.disabled = true;
-    try {
-      const token = await getAuthToken(true);
-      const user = await fetchUserInfo(token);
-      chrome.storage.local.set({ oauth_token: token }, () => {});
-      setStatus(`Connected as ${user.email}`); setIndicator('var(--success)');
-      showConnectButton(false); disconnectBtn.style.display = 'inline-block';
-      syncBtn.disabled = false; showResult('Connected');
-    } catch (err) {
-      setStatus('Sign-in failed: ' + (err.message || err)); setIndicator('#c03');
-      connectBtn.disabled = false; showResult('Sign-in failed', true); console.error('Sign-in error:', err);
-    }
-  });
+  connectBtn.onclick=async()=>{
+    setStatus("Connecting…","#999");connectBtn.disabled=true;
+    try{
+      const t=await getToken(true),u=await getUser(t);
+      setStatus(`Connected as ${u.email}`,"#2a9d3a");
+      show(connectBtn,false);show(disconnectBtn,true);syncBtn.disabled=false;
+    }catch(e){setStatus("Auth failed","#c03");connectBtn.disabled=false;}
+  };
 
-  disconnectBtn.addEventListener('click', async () => {
-    setStatus('Signing out...');
-    try {
-      const token = await getAuthToken(false).catch(() => null);
-      if (token) await revokeToken(token);
-    } catch (e) { console.warn('Revoke error', e); }
-    finally {
-      chrome.storage.local.remove('oauth_token', () => {});
-      setStatus('Not connected'); setIndicator('#c03'); showConnectButton(true);
-      connectBtn.disabled = false; disconnectBtn.style.display = 'none'; syncBtn.disabled = true; showResult('Signed out');
-    }
-  });
+  disconnectBtn.onclick=async()=>{
+    try{const t=await getToken(false);await revoke(t);}catch{}
+    show(connectBtn,true);show(disconnectBtn,false);syncBtn.disabled=true;
+    setStatus("Disconnected","#c03");
+  };
 
-  syncBtn.addEventListener('click', async () => {
-    await syncTimetableToCalendar();
-  });
+  syncBtn.onclick=syncCalendar;
 
-  // initialize
-  (async function init() {
-    setIndicator('#999'); setStatus('Checking connection...');
-    try {
-      await checkConnectionAndUpdate();
-    } catch (e) { /* handled in function */ }
-    // show timetable automatically
-    listDiv.innerHTML = ''; const res = await getTimetableFromActiveTab();
-    const sessions = (res && res.sessions) || [];
-    if (!sessions.length) {
-      listDiv.textContent = 'No sessions found on this page.';
-    } else {
-      sessions.forEach(s => {
-        const wrapper = document.createElement('div'); wrapper.className = 'session';
-        const title = document.createElement('div'); title.className = 'title'; title.textContent = s.title || '(no title)';
-        const meta = document.createElement('div'); meta.className = 'meta';
-        meta.innerHTML = `<span>${s.timeText || ''}</span><span>Room: ${s.room || s.roomRaw || '-'}</span>`;
-        wrapper.appendChild(title); wrapper.appendChild(meta); listDiv.appendChild(wrapper);
-      });
+  (async()=>{
+    const {sessions}=await getTimetable();
+    render(sessions);
+    try{
+      const t=await getToken(false);
+      if(t){
+        setStatus("Connected","#2a9d3a");
+        show(connectBtn,false);
+        show(disconnectBtn,true);
+        syncBtn.disabled=false;
+      }
+    }catch{
+      setStatus("Not connected","#c03");
     }
-    startReconnectPolling();
   })();
 
-  // wrapper to avoid unhandled exceptions
-  async function checkConnectionAndUpdate() {
-    try {
-      return await (async function inner() {
-        try {
-          const token = await getAuthToken(false);
-          if (!token) throw new Error('no-token');
-          await fetchUserInfo(token);
-          setIndicator('var(--success)'); setStatus('Connected'); showConnectButton(false);
-          syncBtn.disabled = false; disconnectBtn.style.display = 'inline-block'; showResult('Connection healthy');
-          return true;
-        } catch (err) {
-          console.warn('Connection check failed:', err && err.message);
-          setIndicator('var(--warning)'); setStatus('Connection lost — reconnecting...');
-          showConnectButton(false);
-          try {
-            const token2 = await getAuthToken(true);
-            if (token2) {
-              await fetchUserInfo(token2); setIndicator('var(--success)');
-              setStatus('Reconnected'); syncBtn.disabled = false; disconnectBtn.style.display = 'inline-block';
-              showResult('Reconnected automatically'); return true;
-            }
-          } catch (reauthErr) {
-            console.warn('Auto reauth failed:', reauthErr && reauthErr.message);
-            setIndicator('#c03'); setStatus('Not connected'); showConnectButton(true);
-            syncBtn.disabled = true; disconnectBtn.style.display = 'none';
-            showResult('Connection lost — please reconnect', true);
-            return false;
-          }
-        }
-      })();
-    } catch (e) {
-      console.warn('checkConnectionAndUpdate outer err', e);
-      setIndicator('#c03'); setStatus('Not connected'); showConnectButton(true);
-      syncBtn.disabled = true; disconnectBtn.style.display = 'none';
-      return false;
-    }
-  }
+  chrome.runtime.onMessage.addListener((m)=>{
+    if(m.action==="timetableUpdated")
+      getTimetable().then(r=>render(r.sessions));
+  });
 });

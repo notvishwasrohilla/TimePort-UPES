@@ -1,95 +1,34 @@
 <!doctype html>
 <html>
-  <head>
-    <meta charset="utf-8" />
-    <title>TimePort UPES</title>
-    <style>
-      :root {
-        --bg: #fff;
-        --muted: #666;
-        --accent: #006097;
-        --danger: #c03;
-        --success: #2a9d3a;
-        --warning: #f4c430;
-      }
-      html,body { margin:0; padding:0; background:var(--bg); font-family:Inter, Roboto, Arial, sans-serif; color:#222; }
-      .container { width:380px; padding:12px; box-sizing:border-box; }
-      header { display:flex; align-items:center; justify-content:space-between; gap:8px; }
-      h3 { margin:0; font-size:16px; }
-
-      /* status row: dot + text aligned */
-      .statusWrap { display:flex; align-items:center; gap:8px; margin-top:8px; }
-      .statusDot { width:12px; height:12px; border-radius:50%; background:#999; box-shadow:0 0 0 2px rgba(0,0,0,0.03) inset; flex:0 0 12px; }
-      #status { font-size:13px; color:var(--muted); display:inline-block; }
-
-      /* button row */
-      .controls { display:flex; gap:8px; margin-top:10px; align-items:center; flex-wrap:wrap; }
-      .controls button {
-        padding:8px 10px;
-        border:0;
-        border-radius:8px;
-        background:#f2f4f6;
-        cursor:pointer;
-        font-size:13px;
-      }
-      .controls button.primary {
-        background:var(--accent);
-        color:#fff;
-      }
-      .controls button.ghost {
-        background:transparent;
-        border:1px solid #eee;
-      }
-
-      hr { border:0; border-top:1px solid #eee; margin:10px 0; }
-
-      /* session list */
-      #list { max-height:320px; overflow:auto; padding-right:6px; margin-top:6px; }
-      .session { border-bottom:1px solid #f0f0f0; padding:8px 0; }
-      .session .title { font-weight:700; font-size:13px; }
-      .session .meta { font-size:12px; color:var(--muted); margin-top:6px; display:flex; justify-content:space-between; gap:8px; }
-
-      #result { margin-top:8px; font-size:13px; }
-
-      /* spinner */
-      .spinner {
-        width:14px; height:14px;
-        border-radius:50%;
-        border:2px solid rgba(255,255,255,0.4);
-        border-top-color:rgba(255,255,255,0.9);
-        animation:spin 1s linear infinite;
-        display:inline-block;
-      }
-      @keyframes spin { to { transform:rotate(360deg); } }
-
-      @media (max-width:400px) {
-        .container { width:340px; }
-      }
-    </style>
-  </head>
-  <body>
-    <div class="container">
-      <header>
-        <h3>TimePort UPES</h3>
-      </header>
-
-      <div class="statusWrap">
-        <div id="statusDot" class="statusDot" title="connection state"></div>
-        <div id="status">Not connected</div>
-      </div>
-
-      <div class="controls" role="toolbar" aria-label="controls">
-        <button id="connectBtn" class="primary">Connect to Google</button>
-        <button id="syncBtn" class="primary" disabled>Sync</button>
-        <button id="disconnectBtn" style="display:none">Sign out</button>
-      </div>
-
-      <hr>
-
-      <div id="result" aria-live="polite"></div>
-      <div id="list"></div>
-    </div>
-
-    <script src="popup.js"></script>
-  </body>
+<head>
+<meta charset="utf-8" />
+<title>TimePort UPES</title>
+<style>
+body{font-family:Inter,Roboto,Arial,sans-serif;margin:0;padding:14px;width:380px;}
+h3{margin:0;font-size:16px}
+.statusWrap{display:flex;align-items:center;gap:8px;margin:8px 0}
+.statusDot{width:10px;height:10px;border-radius:50%;background:#999}
+button{padding:8px 10px;border:0;border-radius:6px;font-size:13px;cursor:pointer}
+.primary{background:#006097;color:#fff}
+#list{max-height:320px;overflow:auto;margin-top:8px}
+.session{border-bottom:1px solid #eee;padding:6px 0}
+.session .title{font-weight:600;font-size:13px}
+.session .meta{font-size:12px;color:#666;display:flex;justify-content:space-between}
+</style>
+</head>
+<body>
+  <h3>TimePort UPES</h3>
+  <div class="statusWrap">
+    <div id="statusDot" class="statusDot"></div>
+    <div id="status">Checking connection…</div>
+  </div>
+  <div>
+    <button id="connectBtn" class="primary">Connect to Google</button>
+    <button id="syncBtn" class="primary" disabled>Sync to Calendar</button>
+    <button id="disconnectBtn" style="display:none">Sign out</button>
+  </div>
+  <div id="result" style="margin-top:6px;font-size:13px"></div>
+  <div id="list"></div>
+<script src="popup.js"></script>
+</body>
 </html>

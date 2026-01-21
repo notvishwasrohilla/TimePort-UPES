@@ -101,11 +101,22 @@ document.addEventListener("DOMContentLoaded", () => {
 
   /* -------------------- INIT -------------------- */
 
-  (async function init() {
-    detectAndApplyPage();
-    const { sessions } = await getTimetable();
-    render(sessions);
-  })();
+ async function getToken(interactive = true) {
+  return new Promise((res, rej) => {
+    chrome.runtime.sendMessage({ action: "get_token" }, r => {
+      if (chrome.runtime.lastError) {
+        rej(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      if (!r || !r.success) {
+        rej(new Error(r ? r.error : "no token"));
+      } else {
+        res(r.token);
+      }
+    });
+  });
+}
+
 
   /* -------------------- LIVE UPDATES -------------------- */
 

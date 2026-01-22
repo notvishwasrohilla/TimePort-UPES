@@ -1,130 +1,111 @@
+// popup.js
 document.addEventListener("DOMContentLoaded", () => {
   const statusText = document.getElementById("status");
   const statusDot = document.getElementById("statusDot");
   const connectBtn = document.getElementById("connectBtn");
   const disconnectBtn = document.getElementById("disconnectBtn");
+  const syncBtn = document.getElementById("syncBtn");
   const list = document.getElementById("list");
   const pageTitle = document.getElementById("pageTitle");
   const pageLabel = document.getElementById("pageLabel");
 
-  function setStatus(text, color) {
-    statusText.textContent = text;
-    statusDot.style.background = color;
+  let items = [];
+
+  function setStatus(t, c) {
+    statusText.textContent = t;
+    statusDot.style.background = c;
   }
 
-  function show(el, visible) {
-    if (!el) return;
-    el.style.display = visible ? "inline-block" : "none";
-  }
-
-  function getToken(interactive) {
-    return new Promise((res, rej) => {
-      chrome.runtime.sendMessage(
-        { action: "get_token", interactive },
-        r => (!r || !r.success) ? rej() : res(r.token)
-      );
+  function safeMessage(tabId, msg) {
+    return new Promise(res => {
+      chrome.tabs.sendMessage(tabId, msg, r => {
+        if (chrome.runtime.lastError) return res(null);
+        res(r);
+      });
     });
   }
 
-  function detectPageFromUrl(url) {
-    if (url.includes("/student/home/dashboard")) return "dashboard";
-    if (url.includes("/student/curriculum-scheduling")) return "timetable";
-    return "other";
-  }
-
-  async function tryGetDashboardSessions(tabId) {
-    return new Promise(resolve => {
-      chrome.tabs.sendMessage(
-        tabId,
-        { action: "getDashboardSessions" },
-        r => {
-          if (chrome.runtime.lastError) return resolve([]);
-          resolve(r?.sessions || []);
-        }
-      );
-    });
-  }
-
-  function renderSessions(sessions) {
+  function renderDashboard(sessions) {
     list.innerHTML = "";
-    if (!sessions.length) {
-      list.textContent = "No sessions found.";
+    syncBtn.style.display = "none";
+
+    if (!sessions || !sessions.length) {
+      list.textContent = "No sessions found for today.";
       return;
     }
 
     sessions.forEach(s => {
       const d = document.createElement("div");
       d.className = "session";
-      d.innerHTML = `
-        <div class="title">${s.title}</div>
-        <div class="meta">
-          <span>${s.timeText}</span>
-          <span>Room: ${s.room || "-"}</span>
-        </div>
-      `;
+      d.innerHTML =
+        `<div class="title">${s.title}</div>` +
+        `<div class="meta">${s.timeText} · ${s.room || "-"}</div>`;
       list.appendChild(d);
     });
   }
 
-  async function initAuth() {
-    try {
-      await getToken(false);
-      setStatus("Connected", "#2a9d3a");
-      show(connectBtn, false);
-      show(disconnectBtn, true);
-    } catch {
-      setStatus("Not connected", "#c03");
-      show(connectBtn, true);
-      show(disconnectBtn, false);
+  function renderTimetable(events) {
+    list.innerHTML = "";
+    items = events || [];
+    syncBtn.style.display = "inline-block";
+    syncBtn.disabled = true;
+
+    if (!items.length) {
+      list.textContent = "No timetable entries found.";
+      return;
     }
-  }
 
-  async function initPage() {
-    chrome.tabs.query({ active: true, currentWindow: true }, async tabs => {
-      if (!tabs.length) return;
-
-      const tab = tabs[0];
-      const mode = detectPageFromUrl(tab.url || "");
-
-      if (mode === "dashboard") {
-        pageTitle.textContent = "Dashboard";
-        pageLabel.textContent = "UPES · Today’s Sessions";
-
-        const sessions = await tryGetDashboardSessions(tab.id);
-        renderSessions(sessions);
-      }
-      else if (mode === "timetable") {
-        pageTitle.textContent = "Timetable";
-        pageLabel.textContent = "UPES · Monthly Timetable";
-        list.textContent = "Timetable scraping will be added next.";
-      }
-      else {
-        pageTitle.textContent = "TimePort UPES";
-        pageLabel.textContent = "Open Dashboard or Timetable page";
-        list.textContent = "";
-      }
+    items.forEach((e, i) => {
+      const d = document.createElement("div");
+      d.className = "session";
+      d.innerHTML =
+        `<label>
+          <input type="checkbox" data-idx="${i}">
+          <div class="title">${e.subject}</div>
+          <div class="meta">${e.date} · ${e.time} · ${e.room || "-"}</div>
+        </label>`;
+      list.appendChild(d);
     });
+
+    list.querySelectorAll("input").forEach(cb =>
+      cb.addEventListener("change", () => {
+        syncBtn.disabled = !list.querySelector("input:checked");
+      })
+    );
   }
 
-  connectBtn.onclick = async () => {
-    setStatus("Connecting…", "#999");
-    try {
-      await getToken(true);
-      initAuth();
-    } catch {
-      setStatus("Auth failed", "#c03");
+  /* ---------------- PAGE DETECTION ---------------- */
+
+  setStatus("Detecting page…", "#999");
+
+  chrome.tabs.query({ active: true, currentWindow: true }, async tabs => {
+    const tab = tabs[0];
+    if (!tab) return;
+
+    const url = tab.url || "";
+
+    if (url.includes("/student/home/dashboard")) {
+      pageTitle.textContent = "Dashboard";
+      pageLabel.textContent = "Today's sessions";
+
+      const r = await safeMessage(tab.id, { action: "getDashboardSessions" });
+      renderDashboard(r?.sessions);
+      setStatus("Connected", "#2a9d3a");
+
+    } else if (url.includes("/student/curriculum-scheduling")) {
+      pageTitle.textContent = "Timetable";
+      pageLabel.textContent = "Select classes to sync";
+
+      const r = await safeMessage(tab.id, { action: "getTimetableEvents" });
+      renderTimetable(r?.events);
+      setStatus("Connected", "#2a9d3a");
+
+    } else {
+      pageTitle.textContent = "TimePort UPES";
+      pageLabel.textContent = "Open Dashboard or Timetable";
+      list.textContent = "";
+      syncBtn.style.display = "none";
+      setStatus("Unsupported page", "#c03");
     }
-  };
-
-  disconnectBtn.onclick = async () => {
-    try {
-      const t = await getToken(false);
-      await fetch(`https://oauth2.googleapis.com/revoke?token=${t}`, { method: "POST" });
-      chrome.identity.removeCachedAuthToken({ token: t });
-    } catch {}
-    initAuth();
-  };
-
-  initAuth();
-  initPage();
+  });
 });

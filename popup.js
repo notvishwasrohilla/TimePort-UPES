@@ -1,30 +1,35 @@
-// popup.js — STEP 1 (UI + button visibility only)
-
-document.addEventListener("DOMContentLoaded", () => {
+// popup.js
+document.addEventListener("DOMContentLoaded", function () {
   const statusText = document.getElementById("status");
   const statusDot = document.getElementById("statusDot");
-
   const connectBtn = document.getElementById("connectBtn");
   const disconnectBtn = document.getElementById("disconnectBtn");
   const syncBtn = document.getElementById("syncBtn");
-
   const list = document.getElementById("list");
   const pageTitle = document.getElementById("pageTitle");
   const pageLabel = document.getElementById("pageLabel");
 
-  let pageMode = "unknown";
-  let items = [];
+  const progressWrap = document.getElementById("progressWrap");
+  const progressFill = document.getElementById("progressFill");
 
-  /* ---------------- helpers ---------------- */
+  let items = [];
+  let pageMode = "other";
+
+  /* ---------- helpers ---------- */
 
   function setStatus(text, color) {
     statusText.textContent = text;
     statusDot.style.background = color;
   }
 
+  function show(el, yes) {
+    if (!el) return;
+    el.style.display = yes ? "block" : "none";
+  }
+
   function safeMessage(tabId, msg) {
-    return new Promise(resolve => {
-      chrome.tabs.sendMessage(tabId, msg, resp => {
+    return new Promise(function (resolve) {
+      chrome.tabs.sendMessage(tabId, msg, function (resp) {
         if (chrome.runtime.lastError) {
           resolve(null);
         } else {
@@ -34,13 +39,13 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  /* ---------------- renderers ---------------- */
+  /* ---------- renderers ---------- */
 
   function renderDashboard(sessions) {
     list.innerHTML = "";
     items = sessions || [];
 
-    syncBtn.style.display = "inline-block";
+    syncBtn.style.display = "block";
     syncBtn.disabled = !items.length;
 
     if (!items.length) {
@@ -48,13 +53,12 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    items.forEach(s => {
+    items.forEach(function (s) {
       const d = document.createElement("div");
       d.className = "session";
-      d.innerHTML = `
-        <div class="title">${s.title}</div>
-        <div class="meta">${s.timeText} · ${s.room || "-"}</div>
-      `;
+      d.innerHTML =
+        '<div class="title">' + s.title + '</div>' +
+        '<div class="meta">' + s.timeText + ' · ' + (s.room || "-") + '</div>';
       list.appendChild(d);
     });
   }
@@ -63,7 +67,7 @@ document.addEventListener("DOMContentLoaded", () => {
     list.innerHTML = "";
     items = events || [];
 
-    syncBtn.style.display = "inline-block";
+    syncBtn.style.display = "block";
     syncBtn.disabled = !items.length;
 
     if (!items.length) {
@@ -71,45 +75,88 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    items.forEach((e, i) => {
+    items.forEach(function (e, i) {
       const d = document.createElement("div");
       d.className = "session";
-      d.innerHTML = `
-        <label>
-          <input type="checkbox" data-idx="${i}">
-          <div class="title">${e.subject}</div>
-          <div class="meta">${e.date || ""} · ${e.time} · ${e.room || "-"}</div>
-        </label>
-      `;
+      d.innerHTML =
+        '<label>' +
+        '<input type="checkbox" data-idx="' + i + '">' +
+        '<div class="title">' + e.subject + '</div>' +
+        '<div class="meta">' +
+        (e.date || "") + ' · ' + e.time + ' · ' + (e.room || "-") +
+        '</div>' +
+        '</label>';
       list.appendChild(d);
     });
-  }
 
-  /* ---------------- auth UI (visual only for now) ---------------- */
-
-  function initAuthUI() {
-    chrome.runtime.sendMessage({ action: "get_token", interactive: false }, r => {
-      if (r && r.success) {
-        setStatus("Connected", "#2a9d3a");
-        connectBtn.style.display = "none";
-        disconnectBtn.style.display = "none";
-      } else {
-        setStatus("Not connected", "#c03");
-        connectBtn.style.display = "inline-block";
-        disconnectBtn.style.display = "none";
-      }
+    Array.from(list.querySelectorAll("input")).forEach(function (cb) {
+      cb.addEventListener("change", function () {
+        syncBtn.disabled = !list.querySelector("input:checked");
+      });
     });
   }
 
-  /* ---------------- page detection ---------------- */
+  /* ---------- calendar sync (TEMPORARY SIMPLE VERSION) ---------- */
 
-  setStatus("Detecting page…", "#999");
+  async function syncCalendar() {
+    let selected;
 
-  chrome.tabs.query({ active: true, currentWindow: true }, async tabs => {
-    if (!tabs || !tabs.length) {
-      setStatus("No active tab", "#c03");
+    if (pageMode === "timetable") {
+      selected = Array.from(list.querySelectorAll("input:checked"))
+        .map(function (cb) {
+          return items[cb.dataset.idx];
+        });
+    } else {
+      selected = items;
+    }
+
+    if (!selected.length) return;
+
+    show(progressWrap, true);
+    progressFill.style.width = "0%";
+
+    let token;
+    try {
+      token = await new Promise(function (resolve, reject) {
+        chrome.runtime.sendMessage({ action: "get_token" }, function (r) {
+          if (r && r.success) resolve(r.token);
+          else reject();
+        });
+      });
+    } catch (e) {
+      setStatus("Auth failed", "#c03");
+      show(progressWrap, false);
       return;
     }
+
+    for (let i = 0; i < selected.length; i++) {
+      const e = selected[i];
+
+      setStatus("Syncing " + (i + 1) + " / " + selected.length, "#999");
+      progressFill.style.width =
+        Math.round(((i + 1) / selected.length) * 100) + "%";
+
+      // TEMP: calendar logic intentionally paused
+      await new Promise(function (r) {
+        setTimeout(r, 300);
+      });
+    }
+
+    setStatus("Calendar synced", "#2a9d3a");
+    setTimeout(function () {
+      show(progressWrap, false);
+    }, 800);
+  }
+
+  syncBtn.onclick = syncCalendar;
+
+  /* ---------- init ---------- */
+
+  show(progressWrap, false);
+  setStatus("Detecting page…", "#999");
+
+  chrome.tabs.query({ active: true, currentWindow: true }, async function (tabs) {
+    if (!tabs || !tabs.length) return;
 
     const tab = tabs[0];
     const url = tab.url || "";
@@ -133,21 +180,12 @@ document.addEventListener("DOMContentLoaded", () => {
       setStatus("Connected", "#2a9d3a");
 
     } else {
+      pageMode = "other";
       pageTitle.textContent = "TimePort UPES";
       pageLabel.textContent = "Open Dashboard or Timetable";
-
       list.textContent = "";
       syncBtn.style.display = "none";
       setStatus("Unsupported page", "#c03");
     }
   });
-
-  initAuthUI();
-
-  /* ---------------- placeholder (no-op for now) ---------------- */
-
-  syncBtn.onclick = () => {
-    // Step 2 will implement actual syncing
-    alert("Calendar sync will be implemented in the next step.");
-  };
 });

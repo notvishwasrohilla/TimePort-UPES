@@ -1,33 +1,147 @@
-<!doctype html>
+<!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8" />
+  <meta charset="UTF-8" />
   <title>TimePort UPES</title>
-  <link rel="stylesheet" href="popup.css">
-</head>
-<body>
 
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      width: 360px;
+      padding: 12px;
+      box-sizing: border-box;
+    }
+
+    h3 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    .sub {
+      font-size: 13px;
+      color: #666;
+      margin-bottom: 8px;
+    }
+
+    .statusRow {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 8px 0 12px;
+    }
+
+    .statusDot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #999;
+    }
+
+    .controls {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    button {
+      flex: 1;
+      padding: 8px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .primary {
+      background: #2a9d3a;
+      color: white;
+    }
+
+    .secondary {
+      background: #1a73e8;
+      color: white;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    #list {
+      max-height: 320px;
+      overflow-y: auto;
+      font-size: 13px;
+    }
+
+    .session {
+      border-bottom: 1px solid #eee;
+      padding: 6px 0;
+    }
+
+    .title {
+      font-weight: 600;
+    }
+
+    .meta {
+      color: #555;
+      font-size: 12px;
+    }
+
+    label {
+      display: block;
+      cursor: pointer;
+    }
+
+    input[type="checkbox"] {
+      margin-right: 6px;
+    }
+
+    #progressWrap {
+      display: none;
+      margin-top: 10px;
+    }
+
+    #progressText {
+      font-size: 12px;
+      margin-bottom: 4px;
+    }
+
+    #progressBar {
+      width: 100%;
+      height: 6px;
+      background: #e0e0e0;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    #progressFill {
+      height: 100%;
+      width: 0%;
+      background: #1a73e8;
+      transition: width 0.3s;
+    }
+  </style>
+</head>
+
+<body>
   <h3 id="pageTitle">TimePort UPES</h3>
   <div id="pageLabel" class="sub">Detecting page…</div>
 
-  <div class="statusWrap">
-    <div class="statusRow">
-      <div id="statusDot" class="statusDot"></div>
-      <div id="status">Checking connection…</div>
-    </div>
-
-    <!-- ✅ SINGLE progress bar, correct position -->
-    <div id="progressWrap" style="display:none;">
-      <div class="progressBar">
-        <div id="progressFill" class="progressFill"></div>
-      </div>
-    </div>
+  <div class="statusRow">
+    <div id="statusDot" class="statusDot"></div>
+    <div id="status">Checking connection…</div>
   </div>
 
   <div class="controls">
     <button id="connectBtn" class="primary">Connect to Google</button>
-    <button id="syncBtn" class="secondary">Sync to Calendar</button>
-    <button id="disconnectBtn" style="display:none">Sign out</button>
+    <button id="syncBtn" class="secondary" disabled>Sync to Calendar</button>
+  </div>
+
+  <div id="progressWrap">
+    <div id="progressText"></div>
+    <div id="progressBar">
+      <div id="progressFill"></div>
+    </div>
   </div>
 
   <div id="list"></div>

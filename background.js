@@ -1,21 +1,25 @@
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  if (msg.action === "get_token") {
-    chrome.identity.getAuthToken(
-      { interactive: true },
-      token => {
-        if (chrome.runtime.lastError) {
-          sendResponse({
-            success: false,
-            error: chrome.runtime.lastError.message
-          });
-        } else {
-          sendResponse({
-            success: true,
-            token
-          });
-        }
-      }
-    );
-    return true;
-  }
+// background.js
+
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action !== "get_token") return;
+
+  const interactive = !!request.interactive;
+
+  chrome.identity.getAuthToken({ interactive }, token => {
+    if (chrome.runtime.lastError || !token) {
+      sendResponse({
+        success: false,
+        error: chrome.runtime.lastError?.message || "Auth failed"
+      });
+      return;
+    }
+
+    sendResponse({
+      success: true,
+      token
+    });
+  });
+
+  // Required for async response
+  return true;
 });

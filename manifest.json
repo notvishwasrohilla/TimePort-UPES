@@ -1,18 +1,21 @@
 {
   "manifest_version": 3,
   "name": "TimePort UPES",
-  "version": "2.0.0",
+  "version": "1.1",
   "description": "Reads your timetable from the UPES dashboard and syncs sessions with Google Calendar.",
+
   "permissions": [
     "identity",
     "storage",
-    "scripting",
-    "activeTab"
+    "activeTab",
+    "scripting"
   ],
+
   "host_permissions": [
     "https://myupes-beta.upes.ac.in/*",
     "https://www.googleapis.com/*"
   ],
+
   "oauth2": {
     "client_id": "887400701013-rlcudhl3sm36usbpckc9qp9d1nv0sgff.apps.googleusercontent.com",
     "scopes": [
@@ -21,12 +24,16 @@
       "openid"
     ]
   },
+
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "type": "module"
   },
+
   "action": {
     "default_popup": "popup.html"
   },
+
   "content_scripts": [
     {
       "matches": ["https://myupes-beta.upes.ac.in/*"],

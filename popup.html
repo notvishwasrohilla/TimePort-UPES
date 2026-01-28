@@ -2,25 +2,64 @@
 <html>
 <head>
   <style>
-    body { width: 300px; padding: 15px; font-family: sans-serif; }
-    button { width: 100%; padding: 10px; margin-top: 10px; cursor: pointer; background-color: #4285F4; color: white; border: none; border-radius: 4px; font-weight: bold; }
-    button:hover { background-color: #357ae8; }
-    #status { margin-top: 10px; font-size: 12px; color: #555; text-align: center;}
-    .hidden { display: none; }
+    :root {
+      --primary: #4285F4;
+      --success: #34A853;
+      --danger: #EA4335;
+      --gray: #dadce0;
+      --text: #202124;
+    }
+    body { width: 350px; padding: 0; margin: 0; font-family: 'Segoe UI', sans-serif; color: var(--text); }
+    
+    /* Header */
+    header { background: var(--primary); color: white; padding: 15px; display: flex; justify-content: space-between; align-items: center; }
+    h2 { margin: 0; font-size: 18px; font-weight: 500; }
+    
+    /* Status Bar */
+    #status-bar { font-size: 12px; padding: 8px 15px; background: #f8f9fa; border-bottom: 1px solid var(--gray); min-height: 15px; color: #555; }
+
+    /* Main Content */
+    .container { padding: 15px; }
+
+    /* Auth Buttons */
+    .btn { width: 100%; padding: 10px; border: none; border-radius: 4px; font-weight: 600; cursor: pointer; margin-bottom: 10px; transition: 0.2s; }
+    .btn-google { background: var(--primary); color: white; }
+    .btn-google:disabled { background: var(--gray); cursor: default; color: #888; }
+    .btn-sync { background: var(--success); color: white; display: none; } /* Hidden by default */
+    .btn-logout { background: transparent; border: 1px solid var(--danger); color: var(--danger); font-size: 12px; padding: 5px 10px; width: auto; }
+
+    /* Session List (The Preview) */
+    #session-list { margin-top: 15px; max-height: 250px; overflow-y: auto; border: 1px solid var(--gray); border-radius: 4px; display: none; }
+    .session-item { padding: 10px; border-bottom: 1px solid #eee; font-size: 13px; }
+    .session-item:last-child { border-bottom: none; }
+    .session-time { color: #666; font-size: 11px; margin-bottom: 2px; }
+    .session-title { font-weight: bold; }
+    .session-loc { font-size: 11px; color: var(--primary); }
+
+    .hidden { display: none !important; }
   </style>
 </head>
 <body>
-  <h3>Timeport Sync</h3>
-  <div id="auth-section">
-    <p>Sign in to sync your UPES schedule.</p>
-    <button id="auth-btn">Sign in with Google</button>
+
+  <header>
+    <h2>Timeport</h2>
+    <button id="logout-btn" class="btn btn-logout hidden">Log out</button>
+  </header>
+
+  <div id="status-bar">Initializing...</div>
+
+  <div class="container">
+    <button id="auth-btn" class="btn btn-google">Sign in with Google</button>
+
+    <div id="data-view" class="hidden">
+      <div id="session-list">
+        </div>
+      <p id="empty-msg" class="hidden" style="text-align:center; color:#888; font-size:12px;">No classes found on this page.</p>
+      
+      <button id="sync-btn" class="btn btn-sync">Sync to Calendar</button>
+    </div>
   </div>
 
-  <div id="sync-section" class="hidden">
-    <button id="scrape-btn">Scrape & Add to Calendar</button>
-  </div>
-
-  <div id="status"></div>
   <script src="popup.js"></script>
 </body>
 </html>

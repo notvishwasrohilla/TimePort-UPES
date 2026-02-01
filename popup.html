@@ -1,65 +1,80 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <meta charset="UTF-8">
   <style>
-    :root {
-      --primary: #4285F4;
-      --success: #34A853;
-      --danger: #EA4335;
-      --gray: #dadce0;
-      --text: #202124;
+    body { width: 320px; font-family: 'Segoe UI', Tahoma, sans-serif; padding: 10px; background-color: #f4f4f4; }
+    h2 { font-size: 16px; margin-top: 0; color: #333; border-bottom: 2px solid #ddd; padding-bottom: 5px;}
+    
+    /* Date Header */
+    .date-header {
+      background: #e0e0e0; 
+      color: #555;
+      padding: 6px; 
+      font-size: 11px; 
+      font-weight: bold; 
+      margin-top: 12px; 
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
-    body { width: 350px; padding: 0; margin: 0; font-family: 'Segoe UI', sans-serif; color: var(--text); }
+
+    /* Common Card Styles */
+    .session-card {
+      background: #fff;
+      padding: 10px;
+      margin-top: 8px;
+      border-radius: 6px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      position: relative;
+    }
+
+    /* Blue Bar (Offline) */
+    .card-offline { border-left: 5px solid #006097; }
     
-    /* Header */
-    header { background: var(--primary); color: white; padding: 15px; display: flex; justify-content: space-between; align-items: center; }
-    h2 { margin: 0; font-size: 18px; font-weight: 500; }
+    /* Pink Bar (Online) */
+    .card-online { border-left: 5px solid #e46097; }
     
-    /* Status Bar */
-    #status-bar { font-size: 12px; padding: 8px 15px; background: #f8f9fa; border-bottom: 1px solid var(--gray); min-height: 15px; color: #555; }
+    /* Green Bar (Holiday) */
+    .card-holiday { border-left: 5px solid #4CAF50; background: #e8f5e9; }
 
-    /* Main Content */
-    .container { padding: 15px; }
+    .subject { font-weight: 700; font-size: 14px; color: #222; display: block; margin-bottom: 2px; }
+    .faculty { font-size: 11px; color: #666; font-style: italic; display: block; margin-bottom: 6px; }
+    
+    .details { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #444; }
+    .time { font-weight: 500; }
+    
+    .room-badge { 
+      background: #eee; 
+      padding: 2px 6px; 
+      border-radius: 4px; 
+      font-weight: 600; 
+      color: #006097;
+    }
 
-    /* Auth Buttons */
-    .btn { width: 100%; padding: 10px; border: none; border-radius: 4px; font-weight: 600; cursor: pointer; margin-bottom: 10px; transition: 0.2s; }
-    .btn-google { background: var(--primary); color: white; }
-    .btn-google:disabled { background: var(--gray); cursor: default; color: #888; }
-    .btn-sync { background: var(--success); color: white; display: none; } /* Hidden by default */
-    .btn-logout { background: transparent; border: 1px solid var(--danger); color: var(--danger); font-size: 12px; padding: 5px 10px; width: auto; }
+    /* Join Button Style */
+    .join-btn {
+      background: #e46097;
+      color: white;
+      text-decoration: none;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: bold;
+      transition: background 0.2s;
+    }
+    .join-btn:hover { background: #c24075; }
 
-    /* Session List (The Preview) */
-    #session-list { margin-top: 15px; max-height: 250px; overflow-y: auto; border: 1px solid var(--gray); border-radius: 4px; display: none; }
-    .session-item { padding: 10px; border-bottom: 1px solid #eee; font-size: 13px; }
-    .session-item:last-child { border-bottom: none; }
-    .session-time { color: #666; font-size: 11px; margin-bottom: 2px; }
-    .session-title { font-weight: bold; }
-    .session-loc { font-size: 11px; color: var(--primary); }
-
-    .hidden { display: none !important; }
+    button#scrapeBtn { width: 100%; padding: 10px; background: #333; color: white; border: none; border-radius: 4px; cursor: pointer; margin-top: 10px; font-weight: bold;}
+    button#scrapeBtn:hover { background: #111; }
+    #status { font-size: 11px; color: #777; text-align: center; margin-bottom: 5px; }
   </style>
 </head>
 <body>
-
-  <header>
-    <h2>Timeport</h2>
-    <button id="logout-btn" class="btn btn-logout hidden">Log out</button>
-  </header>
-
-  <div id="status-bar">Initializing...</div>
-
-  <div class="container">
-    <button id="auth-btn" class="btn btn-google">Sign in with Google</button>
-
-    <div id="data-view" class="hidden">
-      <div id="session-list">
-        </div>
-      <p id="empty-msg" class="hidden" style="text-align:center; color:#888; font-size:12px;">No classes found on this page.</p>
-      
-      <button id="sync-btn" class="btn btn-sync">Sync to Calendar</button>
-    </div>
-  </div>
-
+  <h2>University Schedule</h2>
+  <div id="status">Ready to scrape</div>
+  <div id="schedule-list"></div>
+  <button id="scrapeBtn">Load Schedule</button>
   <script src="popup.js"></script>
 </body>
 </html>

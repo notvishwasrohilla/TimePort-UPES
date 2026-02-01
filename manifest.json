@@ -1,24 +1,10 @@
 {
   "manifest_version": 3,
-  "name": "Timeport",
+  "name": "Uni Schedule Scraper",
   "version": "1.0",
-  "description": "Scrape UPES student dashboard and sync to Google Calendar.",
+  "description": "Scrapes Today's Sessions from the dashboard.",
+  "permissions": ["activeTab", "scripting"],
   "action": {
     "default_popup": "popup.html"
-  },
-  "permissions": [
-    "identity",
-    "scripting",
-    "activeTab"
-  ],
-  "host_permissions": [
-    "https://myupes-beta.upes.ac.in/*",
-    "https://www.googleapis.com/*"
-  ],
-  "oauth2": {
-    "client_id": "887400701013-rlcudhl3sm36usbpckc9qp9d1nv0sgff.apps.googleusercontent.com",
-    "scopes": [
-      "https://www.googleapis.com/auth/calendar.events"
-    ]
   }
 }

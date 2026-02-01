@@ -1,21 +1,91 @@
-document.getElementById("scrapeBtn").addEventListener("click", async () => {
-  const status = document.getElementById("status");
-  status.textContent = "Analyzing page structure...";
+// Configuration
+const MAX_RETRIES = 15; 
+const RETRY_INTERVAL = 1000; 
 
+let attempts = 0;
+
+document.addEventListener('DOMContentLoaded', () => {
+    startScrapingProcess();
+});
+
+async function startScrapingProcess() {
+  const statusText = document.getElementById("status-text");
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
-  chrome.scripting.executeScript({
-    target: { tabId: tab.id },
-    function: routerScrape,
-  }, (results) => {
-    if (results && results[0] && results[0].result) {
-      displaySchedule(results[0].result);
-      status.textContent = `Loaded ${results[0].result.length} sessions`;
-    } else {
-      status.textContent = "No schedule data found.";
+  if (!tab) {
+      statusText.textContent = "Error: No active tab.";
+      return;
+  }
+
+  const attempt = () => {
+      attempts++;
+      chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          function: routerScrape,
+      }, async (results) => { // Made async to handle storage
+          
+          const rawData = results && results[0] ? results[0].result : [];
+
+          if (rawData && rawData.length > 0) {
+              // DATA FOUND: Process it through our "Memory System"
+              const processedData = await processMemory(rawData);
+              
+              displaySchedule(processedData);
+          } else {
+              // RETRY LOGIC
+              if (attempts < MAX_RETRIES) {
+                  statusText.textContent = `Waiting for schedule... (${attempts})`;
+                  setTimeout(attempt, RETRY_INTERVAL);
+              } else {
+                  document.querySelector(".spinner").style.display = "none";
+                  statusText.textContent = "Could not find schedule. Is the page loaded?";
+              }
+          }
+      });
+  };
+
+  attempt();
+}
+
+/* =========================================
+   MEMORY SYSTEM (The Brain)
+   ========================================= */
+async function processMemory(sessions) {
+    // 1. Get existing memory from storage
+    const storage = await chrome.storage.local.get(["facultyMap"]);
+    let facultyMap = storage.facultyMap || {};
+    let memoryUpdated = false;
+
+    // 2. Loop through sessions to either LEARN or APPLY knowledge
+    sessions.forEach(session => {
+        
+        // CASE A: We are on Scheduler (Data has faculty info)
+        // We act as a "Teacher" -> We teach the memory
+        if (session.source === "scheduler" && session.faculty && session.subject) {
+            if (facultyMap[session.subject] !== session.faculty) {
+                facultyMap[session.subject] = session.faculty;
+                memoryUpdated = true;
+            }
+        }
+
+        // CASE B: We are on Dashboard (Data lacks faculty info)
+        // We act as a "Student" -> We ask memory for help
+        if (session.source === "dashboard" && session.subject) {
+            if (facultyMap[session.subject]) {
+                // Found it in memory! Update the empty field.
+                session.faculty = facultyMap[session.subject];
+            }
+        }
+    });
+
+    // 3. If we learned something new, save it back to storage
+    if (memoryUpdated) {
+        await chrome.storage.local.set({ facultyMap: facultyMap });
+        console.log("TimePort Memory Updated:", facultyMap);
     }
-  });
-});
+
+    return sessions;
+}
 
 /* =========================================
    THE SCRAPER ROUTER
@@ -23,18 +93,17 @@ document.getElementById("scrapeBtn").addEventListener("click", async () => {
 function routerScrape() {
   const url = window.location.href;
   
-  // Decide which scraper to use
   if (url.includes("curriculum-scheduling") || document.querySelector("kendo-scheduler")) {
     return scrapeScheduler();
   } else {
     return scrapeDashboard();
   }
 
-  // --- METHOD A: DASHBOARD ---
   function scrapeDashboard() {
     const sessionItems = document.querySelectorAll("li.course-red-wrapper");
-    const data = [];
+    if (sessionItems.length === 0) return [];
 
+    const data = [];
     sessionItems.forEach((item) => {
       const subjectEl = item.querySelector("b");
       const pTag = item.querySelector("p");
@@ -43,12 +112,12 @@ function routerScrape() {
       
       if (subjectEl) {
         data.push({
-          source: "dashboard",
+          source: "dashboard", // Tagging source is crucial for memory logic
           date: "Today's Sessions",
           subject: subjectEl.innerText,
           time: timeText,
           room: roomEl ? roomEl.innerText : "N/A",
-          faculty: "See Scheduler for info", 
+          faculty: null, // Start as null, let Memory fill it later
           type: "offline"
         });
       }
@@ -56,31 +125,25 @@ function routerScrape() {
     return data;
   }
 
-  // --- METHOD B: SCHEDULER (FIXED) ---
   function scrapeScheduler() {
     const events = document.querySelectorAll(".k-event");
-    const data = [];
+    if (events.length === 0) return [];
 
+    const data = [];
     events.forEach(event => {
-      // 1. Get Date
       const ariaLabel = event.getAttribute("aria-label") || "";
       const dateParts = ariaLabel.split(','); 
       const dateString = dateParts.length >= 2 ? (dateParts[0] + "," + dateParts[1]) : "Upcoming";
 
-      // 2. Detect Type by Color
       const style = event.getAttribute("style") || "";
       let type = "offline"; 
       if (style.includes("228, 96, 151")) type = "online";
       if (style.includes("76, 175, 80")) type = "holiday";
 
-      // 3. Get Details (The Fix)
       const detailsDiv = event.querySelector(".event-in-details");
-      
-      // Check if we have the specific attribute that classes have
       const subjectAttr = detailsDiv ? detailsDiv.getAttribute("titlemodulename") : null;
 
       if (subjectAttr) {
-        // SCENARIO 1: It is a standard class (has attributes)
         data.push({
           source: "scheduler",
           date: dateString.trim(),
@@ -91,13 +154,12 @@ function routerScrape() {
           type: type
         });
       } else {
-        // SCENARIO 2: It is a Holiday or weird event (No attributes, just text)
         const titleSpan = event.querySelector(".event-title");
         if (titleSpan) {
            data.push({
               source: "scheduler",
               date: dateString.trim(),
-              subject: titleSpan.innerText, // "Republic Day"
+              subject: titleSpan.innerText,
               faculty: "",
               time: "All Day",
               room: "",
@@ -106,7 +168,6 @@ function routerScrape() {
         }
       }
     });
-    
     return data;
   }
 }
@@ -116,6 +177,9 @@ function routerScrape() {
    ========================================= */
 function displaySchedule(sessions) {
   const container = document.getElementById("schedule-list");
+  const statusContainer = document.getElementById("status-container");
+  
+  statusContainer.style.display = "none";
   container.innerHTML = "";
 
   if (sessions.length === 0) {
@@ -143,14 +207,11 @@ function displaySchedule(sessions) {
     if (session.type === "online") {
       locationHtml = `<a href="https://teams.microsoft.com/" target="_blank" class="join-btn">📹 JOIN CLASS</a>`;
     } else if (session.type === "holiday") {
-      // Holiday specific display
       locationHtml = `<span style="font-size:12px; color:#4CAF50; font-weight:bold;">🎉 Holiday</span>`;
     }
 
     const div = document.createElement("div");
     div.className = `session-card ${cardClass}`;
-    
-    // Improved inner HTML to handle missing faculty/time gracefully
     div.innerHTML = `
       <span class="subject">${session.subject}</span>
       ${session.faculty ? `<span class="faculty">👤 ${session.faculty}</span>` : ""}

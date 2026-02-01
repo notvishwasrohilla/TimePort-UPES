@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "Uni Schedule Scraper",
-  "version": "1.0",
-  "description": "Scrapes Today's Sessions from the dashboard.",
-  "permissions": ["activeTab", "scripting"],
+  "name": "TimePort",
+  "version": "0.4",
+  "description": "Scrapes University Schedule and remembers faculty details.",
+  "permissions": ["activeTab", "scripting", "storage"],
   "action": {
     "default_popup": "popup.html"
   }

@@ -4,43 +4,45 @@
   <meta charset="UTF-8">
   <style>
     body { width: 320px; font-family: 'Segoe UI', Tahoma, sans-serif; padding: 10px; background-color: #f4f4f4; }
-    h2 { font-size: 16px; margin-top: 0; color: #333; border-bottom: 2px solid #ddd; padding-bottom: 5px;}
     
-    .date-header {
-      background: #e0e0e0; color: #555; padding: 6px; font-size: 11px; font-weight: bold; 
-      margin-top: 12px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.5px;
+    /* Header & Controls */
+    .header-controls { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #ddd; padding-bottom: 5px; margin-bottom: 10px;}
+    h2 { font-size: 16px; margin: 0; color: #333; }
+    
+    /* Google Sync Button */
+    #syncBtn {
+      background: #4285F4; color: white; border: none; padding: 6px 12px; border-radius: 4px;
+      font-size: 12px; font-weight: bold; cursor: pointer; display: none; /* Hidden until data loads */
     }
-    .session-card {
-      background: #fff; padding: 10px; margin-top: 8px; border-radius: 6px; 
-      box-shadow: 0 2px 4px rgba(0,0,0,0.05); position: relative;
-    }
+    #syncBtn:hover { background: #3367D6; }
+    #syncBtn:disabled { background: #ccc; cursor: not-allowed; }
+
+    /* Cards */
+    .date-header { background: #e0e0e0; color: #555; padding: 6px; font-size: 11px; font-weight: bold; margin-top: 12px; border-radius: 4px; text-transform: uppercase; }
+    .session-card { background: #fff; padding: 10px; margin-top: 8px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    
     .card-offline { border-left: 5px solid #006097; }
     .card-online { border-left: 5px solid #e46097; }
     .card-holiday { border-left: 5px solid #4CAF50; background: #e8f5e9; }
 
-    .subject { font-weight: 700; font-size: 14px; color: #222; display: block; margin-bottom: 2px; }
+    .subject { font-weight: 700; font-size: 14px; color: #222; display: block; }
     .faculty { font-size: 11px; color: #666; font-style: italic; display: block; margin-bottom: 6px; }
     .details { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #444; }
-    .time { font-weight: 500; }
     .room-badge { background: #eee; padding: 2px 6px; border-radius: 4px; font-weight: 600; color: #006097; }
     
-    .join-btn {
-      background: #e46097; color: white; text-decoration: none; padding: 3px 10px; 
-      border-radius: 12px; font-size: 11px; font-weight: bold; transition: background 0.2s;
-    }
-    .join-btn:hover { background: #c24075; }
+    .join-btn { background: #e46097; color: white; text-decoration: none; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; }
 
-    /* Loader Style */
+    /* Loader */
     #status-container { text-align: center; padding: 20px; color: #666; font-size: 13px; }
-    .spinner {
-      border: 3px solid #f3f3f3; border-top: 3px solid #006097; border-radius: 50%;
-      width: 20px; height: 20px; animation: spin 1s linear infinite; margin: 0 auto 10px auto;
-    }
+    .spinner { border: 3px solid #f3f3f3; border-top: 3px solid #006097; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; margin: 0 auto 10px auto; }
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
-  <h2>University Schedule</h2>
+  <div class="header-controls">
+    <h2>TimePort</h2>
+    <button id="syncBtn">📅 Sync to Google</button>
+  </div>
   
   <div id="status-container">
     <div class="spinner"></div>

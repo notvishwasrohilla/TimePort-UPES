@@ -1,9 +1,15 @@
 {
   "manifest_version": 3,
   "name": "TimePort",
-  "version": "0.4",
-  "description": "Scrapes University Schedule and remembers faculty details.",
-  "permissions": ["activeTab", "scripting", "storage"],
+  "version": "0.5",
+  "description": "Scrapes University Schedule and syncs to Google Calendar.",
+  "permissions": ["activeTab", "scripting", "storage", "identity"],
+  "oauth2": {
+    "client_id": "887400701013-rlcudhl3sm36usbpckc9qp9d1nv0sgff.apps.googleusercontent.com",
+    "scopes": [
+      "https://www.googleapis.com/auth/calendar.events"
+    ]
+  },
   "action": {
     "default_popup": "popup.html"
   }

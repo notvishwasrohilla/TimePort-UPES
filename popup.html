@@ -3,24 +3,69 @@
 <head>
   <meta charset="UTF-8">
   <style>
-    body { width: 320px; font-family: 'Segoe UI', Tahoma, sans-serif; padding: 10px; background-color: #f4f4f4; }
+    body { width: 350px; font-family: 'Segoe UI', Tahoma, sans-serif; padding: 10px; background-color: #f4f4f4; }
     
+    /* General Icon Style */
+    .icon {
+      width: 14px;
+      height: 14px;
+      vertical-align: text-bottom; /* Aligns icon with text */
+      margin-right: 4px;
+      opacity: 0.8;
+    }
+    
+    /* Custom Checkbox using your SVGs */
+    .sync-checkbox {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+      border: none;
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: center;
+      /* Default state: Blank */
+      background-image: url('icons/Checkbox Blank.svg'); 
+      margin-top: 4px;
+    }
+
+    .sync-checkbox:checked {
+      /* Checked state: Checked */
+      background-image: url('icons/Checkbox Checked.svg');
+    }
+
     /* Header & Controls */
-    .header-controls { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #ddd; padding-bottom: 5px; margin-bottom: 10px;}
+    .header-controls { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #ddd; padding-bottom: 8px; margin-bottom: 10px;}
     h2 { font-size: 16px; margin: 0; color: #333; }
     
-    /* Google Sync Button */
+    .auth-controls { display: flex; gap: 10px; align-items: center; }
+    #signOutBtn { font-size: 11px; color: #d9534f; cursor: pointer; text-decoration: underline; border: none; background: none; display: none; }
+
     #syncBtn {
       background: #4285F4; color: white; border: none; padding: 6px 12px; border-radius: 4px;
-      font-size: 12px; font-weight: bold; cursor: pointer; display: none; /* Hidden until data loads */
+      font-size: 12px; font-weight: bold; cursor: pointer; display: none;
+      display: flex; align-items: center; /* Flex to align SVG inside button */
     }
     #syncBtn:hover { background: #3367D6; }
     #syncBtn:disabled { background: #ccc; cursor: not-allowed; }
+    
+    /* Invert colors for icons inside the blue button so they look white/clean */
+    #syncBtn .icon { filter: brightness(0) invert(1); }
+
+    /* Progress UI */
+    #progress-container {
+      display: none; margin-bottom: 15px; background: white; padding: 10px; border-radius: 6px; border: 1px solid #ddd;
+    }
+    .progress-label { font-size: 12px; font-weight: bold; color: #333; margin-bottom: 5px; display: block;}
+    .progress-sub { font-size: 11px; color: #666; margin-bottom: 5px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .progress-track { width: 100%; height: 8px; background: #eee; border-radius: 4px; overflow: hidden; }
+    .progress-fill { width: 0%; height: 100%; background: #4285F4; transition: width 0.3s ease; }
 
     /* Cards */
     .date-header { background: #e0e0e0; color: #555; padding: 6px; font-size: 11px; font-weight: bold; margin-top: 12px; border-radius: 4px; text-transform: uppercase; }
-    .session-card { background: #fff; padding: 10px; margin-top: 8px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-    
+    .session-card { background: #fff; padding: 10px; margin-top: 8px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); display: flex; gap: 10px; align-items: flex-start; }
+    .card-content { flex-grow: 1; }
     .card-offline { border-left: 5px solid #006097; }
     .card-online { border-left: 5px solid #e46097; }
     .card-holiday { border-left: 5px solid #4CAF50; background: #e8f5e9; }
@@ -30,9 +75,17 @@
     .details { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #444; }
     .room-badge { background: #eee; padding: 2px 6px; border-radius: 4px; font-weight: 600; color: #006097; }
     
-    .join-btn { background: #e46097; color: white; text-decoration: none; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; }
+    .join-btn { background: #e46097; color: white; text-decoration: none; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; display: flex; align-items: center;}
+    /* Make icon inside join button white */
+    .join-btn .icon { filter: brightness(0) invert(1); width: 12px; height: 12px;}
 
-    /* Loader */
+    .synced-badge { 
+      font-size: 11px; color: #2e7d32; font-weight: bold; background: #e8f5e9; 
+      padding: 2px 6px; border-radius: 4px; border: 1px solid #c8e6c9;
+      display: flex; align-items: center;
+    }
+    
+    /* Loaders */
     #status-container { text-align: center; padding: 20px; color: #666; font-size: 13px; }
     .spinner { border: 3px solid #f3f3f3; border-top: 3px solid #006097; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; margin: 0 auto 10px auto; }
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
@@ -41,16 +94,28 @@
 <body>
   <div class="header-controls">
     <h2>TimePort</h2>
-    <button id="syncBtn">📅 Sync to Google</button>
+    <div class="auth-controls">
+      <button id="signOutBtn">Sign Out</button>
+      <button id="syncBtn">
+        <img src="icons/Calender.svg" class="icon"> Sync Selected
+      </button>
+    </div>
   </div>
   
+  <div id="progress-container">
+    <span class="progress-label" id="prog-title">Syncing...</span>
+    <span class="progress-sub" id="prog-detail">Waiting to start</span>
+    <div class="progress-track">
+      <div class="progress-fill" id="prog-bar"></div>
+    </div>
+  </div>
+
   <div id="status-container">
     <div class="spinner"></div>
     <span id="status-text">Searching for schedule...</span>
   </div>
 
   <div id="schedule-list"></div>
-  
   <script src="popup.js"></script>
 </body>
 </html>

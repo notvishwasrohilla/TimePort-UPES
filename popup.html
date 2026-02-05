@@ -4,38 +4,54 @@
   <meta charset="UTF-8">
   <style>
     body { width: 350px; font-family: 'Segoe UI', Tahoma, sans-serif; padding: 10px; background-color: #f4f4f4; }
-    
-    /* General Icon Style */
+
+    /* --- ICON SYSTEM --- */
     .icon {
-      width: 14px;
-      height: 14px;
-      vertical-align: text-bottom; /* Aligns icon with text */
+      vertical-align: text-bottom;
       margin-right: 4px;
-      opacity: 0.8;
+      display: inline-block;
     }
+
+    /* 1. Reset: Turn White icons to Black first, so we can colorize them */
+    .icon-dark { filter: brightness(0); }
+
+    /* 2. Specific Color Filters (Calculated from Hex codes) */
     
-    /* Custom Checkbox using your SVGs */
-    .sync-checkbox {
-      appearance: none;
-      -webkit-appearance: none;
-      width: 18px;
-      height: 18px;
-      cursor: pointer;
-      border: none;
-      background-size: contain;
-      background-repeat: no-repeat;
-      background-position: center;
-      /* Default state: Blank */
-      background-image: url('icons/Checkbox Blank.svg'); 
-      margin-top: 4px;
+    /* Uni Blue (#006097) */
+    .icon-location { 
+      width: 14px; height: 14px;
+      filter: brightness(0) invert(21%) sepia(86%) saturate(1751%) hue-rotate(188deg) brightness(96%) contrast(101%);
     }
 
-    .sync-checkbox:checked {
-      /* Checked state: Checked */
-      background-image: url('icons/Checkbox Checked.svg');
+    /* Neutral Grey (#666666) */
+    .icon-time { 
+      width: 14px; height: 14px;
+      filter: brightness(0) invert(42%) sepia(0%) saturate(0%) hue-rotate(139deg) brightness(96%) contrast(89%);
     }
 
-    /* Header & Controls */
+    /* Dark Grey (#444444) */
+    .icon-faculty { 
+      width: 14px; height: 14px;
+      filter: brightness(0) invert(24%) sepia(0%) saturate(1%) hue-rotate(162deg) brightness(93%) contrast(88%);
+    }
+
+    /* Success Green (#2E7D32) */
+    .icon-check { 
+      width: 14px; height: 14px;
+      filter: brightness(0) invert(35%) sepia(87%) saturate(399%) hue-rotate(87deg) brightness(93%) contrast(89%);
+    }
+
+    /* Holiday Green (#4CAF50) */
+    .icon-holiday {
+      width: 14px; height: 14px;
+      filter: brightness(0) invert(59%) sepia(61%) saturate(464%) hue-rotate(89deg) brightness(93%) contrast(93%);
+    }
+
+    /* White Icons (For inside Buttons) - No filter needed if SVGs are already white */
+    .icon-white { width: 15px; height: 15px; }
+
+
+    /* --- CONTROLS & LAYOUT --- */
     .header-controls { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #ddd; padding-bottom: 8px; margin-bottom: 10px;}
     h2 { font-size: 16px; margin: 0; color: #333; }
     
@@ -45,22 +61,35 @@
     #syncBtn {
       background: #4285F4; color: white; border: none; padding: 6px 12px; border-radius: 4px;
       font-size: 12px; font-weight: bold; cursor: pointer; display: none;
-      display: flex; align-items: center; /* Flex to align SVG inside button */
+      display: flex; align-items: center; gap: 5px;
     }
     #syncBtn:hover { background: #3367D6; }
     #syncBtn:disabled { background: #ccc; cursor: not-allowed; }
-    
-    /* Invert colors for icons inside the blue button so they look white/clean */
-    #syncBtn .icon { filter: brightness(0) invert(1); }
 
-    /* Progress UI */
-    #progress-container {
-      display: none; margin-bottom: 15px; background: white; padding: 10px; border-radius: 6px; border: 1px solid #ddd;
+    /* Checkbox Styling */
+    .sync-checkbox {
+      appearance: none; -webkit-appearance: none;
+      width: 18px; height: 18px; cursor: pointer; border: none;
+      background-size: contain; background-repeat: no-repeat; background-position: center;
+      /* Use the filters to color the Blank checkbox Grey */
+      background-image: url('icons/Checkbox Blank.svg'); 
+      filter: brightness(0) invert(80%); /* Makes it light grey */
+      margin-top: 4px;
     }
+    .sync-checkbox:checked {
+      background-image: url('icons/Checkbox Checked.svg');
+      filter: none; /* Shows original color (or apply green filter here if needed) */
+    }
+
+    /* Progress & Loaders */
+    #progress-container { display: none; margin-bottom: 15px; background: white; padding: 10px; border-radius: 6px; border: 1px solid #ddd; }
     .progress-label { font-size: 12px; font-weight: bold; color: #333; margin-bottom: 5px; display: block;}
     .progress-sub { font-size: 11px; color: #666; margin-bottom: 5px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .progress-track { width: 100%; height: 8px; background: #eee; border-radius: 4px; overflow: hidden; }
     .progress-fill { width: 0%; height: 100%; background: #4285F4; transition: width 0.3s ease; }
+    #status-container { text-align: center; padding: 20px; color: #666; font-size: 13px; }
+    .spinner { border: 3px solid #f3f3f3; border-top: 3px solid #006097; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; margin: 0 auto 10px auto; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
     /* Cards */
     .date-header { background: #e0e0e0; color: #555; padding: 6px; font-size: 11px; font-weight: bold; margin-top: 12px; border-radius: 4px; text-transform: uppercase; }
@@ -73,23 +102,24 @@
     .subject { font-weight: 700; font-size: 14px; color: #222; display: block; }
     .faculty { font-size: 11px; color: #666; font-style: italic; display: block; margin-bottom: 6px; }
     .details { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #444; }
-    .room-badge { background: #eee; padding: 2px 6px; border-radius: 4px; font-weight: 600; color: #006097; }
     
-    .join-btn { background: #e46097; color: white; text-decoration: none; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; display: flex; align-items: center;}
-    /* Make icon inside join button white */
-    .join-btn .icon { filter: brightness(0) invert(1); width: 12px; height: 12px;}
-
+    .room-badge { 
+      background: #eee; padding: 2px 6px; border-radius: 4px; font-weight: 600; color: #006097; 
+      display: flex; align-items: center; /* Centers icon and text */
+    }
+    
+    .join-btn { 
+      background: #e46097; color: white; text-decoration: none; padding: 3px 10px; 
+      border-radius: 12px; font-size: 11px; font-weight: bold; 
+      display: flex; align-items: center; gap: 4px;
+    }
+    
     .synced-badge { 
       font-size: 11px; color: #2e7d32; font-weight: bold; background: #e8f5e9; 
       padding: 2px 6px; border-radius: 4px; border: 1px solid #c8e6c9;
       display: flex; align-items: center;
     }
-    
-    /* Loaders */
-    #status-container { text-align: center; padding: 20px; color: #666; font-size: 13px; }
-    .spinner { border: 3px solid #f3f3f3; border-top: 3px solid #006097; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; margin: 0 auto 10px auto; }
-    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-  </style>
+</style>
 </head>
 <body>
   <div class="header-controls">

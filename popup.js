@@ -139,8 +139,8 @@ async function handleSync() {
     const indicesToSync = Array.from(checkboxes).map(cb => parseInt(cb.getAttribute("data-index")));
     
     btn.disabled = true;
-    // Replace icon with Hourglass
-    btn.innerHTML = `<img src="icons/Hourglass.svg" class="icon"> Syncing...`;
+    // Replace icon with Hourglass and use white filter
+    btn.innerHTML = `<img src="icons/Hourglass.svg" class="icon icon-white"> Syncing...`;
     
     document.getElementById("schedule-list").style.opacity = "0.5"; 
     const progContainer = document.getElementById("progress-container");
@@ -207,8 +207,8 @@ async function handleSync() {
 
     function resetUI() {
         btn.disabled = false;
-        // Reset button icon to Calendar
-        btn.innerHTML = `<img src="icons/Calender.svg" class="icon"> Sync Selected`;
+        // Reset button icon to Calendar with white filter
+        btn.innerHTML = `<img src="icons/Calender.svg" class="icon icon-white"> Sync Selected`;
         document.getElementById("schedule-list").style.opacity = "1";
         progContainer.style.display = "none";
         progBar.style.width = "0%";
@@ -308,15 +308,15 @@ function displaySchedule(sessions) {
     if (session.type === "online") cardClass = "card-online";
     if (session.type === "holiday") cardClass = "card-holiday";
 
-    // Location / Button HTML
-    let locationHtml = `<span class="room-badge"><img src="icons/Location.svg" class="icon"> ${session.room}</span>`;
+    // Location / Button HTML with colored classes
+    let locationHtml = `<span class="room-badge"><img src="icons/Location.svg" class="icon icon-location"> ${session.room}</span>`;
     
     if (session.type === "online") {
         locationHtml = session.link 
-            ? `<a href="${session.link}" target="_blank" class="join-btn"><img src="icons/VideoCam.svg" class="icon"> JOIN CLASS</a>` 
-            : `<a href="https://teams.microsoft.com/" target="_blank" class="join-btn"><img src="icons/VideoCam.svg" class="icon"> JOIN TEAMS</a>`;
+            ? `<a href="${session.link}" target="_blank" class="join-btn"><img src="icons/VideoCam.svg" class="icon icon-white"> JOIN CLASS</a>` 
+            : `<a href="https://teams.microsoft.com/" target="_blank" class="join-btn"><img src="icons/VideoCam.svg" class="icon icon-white"> JOIN TEAMS</a>`;
     } else if (session.type === "holiday") {
-      locationHtml = `<span style="font-size:12px; color:#4CAF50; font-weight:bold;"><img src="icons/Holiday.svg" class="icon"> Holiday</span>`;
+      locationHtml = `<span style="font-size:12px; color:#4CAF50; font-weight:bold;"><img src="icons/Holiday.svg" class="icon icon-holiday"> Holiday</span>`;
     }
 
     // Checkbox or Synced Badge
@@ -324,10 +324,10 @@ function displaySchedule(sessions) {
     if (session.type === "holiday") {
         actionHtml = ""; 
     } else if (session.isSynced) {
-        // Use Checkbox Checked.svg as an image for the badge
-        actionHtml = `<div class="synced-badge"><img src="icons/Checkbox Checked.svg" class="icon"> Synced</div>`;
+        // Use 'icon-check' to color the checkmark green
+        actionHtml = `<div class="synced-badge"><img src="icons/Checkbox Checked.svg" class="icon icon-check"> Synced</div>`;
     } else {
-        // Use standard input, but styled via CSS to look like Checkbox Blank.svg
+        // Standard input (colored by CSS filter)
         actionHtml = `<input type="checkbox" class="sync-checkbox" data-index="${index}" checked>`;
     }
 
@@ -337,9 +337,9 @@ function displaySchedule(sessions) {
       ${actionHtml ? `<div style="margin-right:10px;">${actionHtml}</div>` : ""}
       <div class="card-content">
         <span class="subject">${session.subject}</span>
-        ${session.faculty ? `<span class="faculty"><img src="icons/Person.svg" class="icon"> ${session.faculty}</span>` : ""}
+        ${session.faculty ? `<span class="faculty"><img src="icons/Person.svg" class="icon icon-faculty"> ${session.faculty}</span>` : ""}
         <div class="details">
-          <span class="time">${session.time !== "All Day" ? `<img src="icons/Alarm.svg" class="icon"> ` + session.time : ""}</span>
+          <span class="time">${session.time !== "All Day" ? `<img src="icons/Alarm.svg" class="icon icon-time"> ` + session.time : ""}</span>
           ${locationHtml}
         </div>
       </div>

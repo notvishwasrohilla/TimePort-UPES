@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "TimePort",
-  "version": "0.5",
+  "version": "0.4",
   "description": "Scrapes University Schedule and syncs to Google Calendar.",
   "permissions": ["activeTab", "scripting", "storage", "identity"],
   "oauth2": {

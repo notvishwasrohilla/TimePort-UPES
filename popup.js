@@ -4,13 +4,73 @@ const RETRY_INTERVAL = 1000;
 
 let attempts = 0;
 let currentSchedule = []; 
+let isUserLoggedIn = false;
 
 document.addEventListener('DOMContentLoaded', () => {
+    checkAuthState();
     startScrapingProcess();
     
     document.getElementById("syncBtn").addEventListener("click", handleSync);
     document.getElementById("signOutBtn").addEventListener("click", handleSignOut);
+    document.getElementById("signInBtn").addEventListener("click", handleSignIn);
 });
+
+// --- AUTH STATE MANAGEMENT ---
+
+function checkAuthState() {
+    chrome.identity.getAuthToken({ interactive: false }, (token) => {
+        if (chrome.runtime.lastError || !token) {
+            setLoggedOutUI();
+        } else {
+            setLoggedInUI();
+        }
+    });
+}
+
+function setLoggedInUI() {
+    isUserLoggedIn = true;
+    document.getElementById("signInBtn").style.display = "none";
+    document.getElementById("signOutBtn").style.display = "block";
+}
+
+function setLoggedOutUI() {
+    isUserLoggedIn = false;
+    document.getElementById("signInBtn").style.display = "block";
+    document.getElementById("signOutBtn").style.display = "none";
+}
+
+function handleSignIn() {
+    chrome.identity.getAuthToken({ interactive: true }, async (token) => {
+        if (chrome.runtime.lastError || !token) {
+            alert("Sign in failed. Please try again.");
+            return;
+        }
+        setLoggedInUI();
+        if (currentSchedule.length > 0) {
+            document.getElementById("status-text").textContent = "Refreshing sync status...";
+            const updatedData = await checkDuplicateEvents(currentSchedule);
+            currentSchedule = updatedData;
+            displaySchedule(updatedData);
+        }
+    });
+}
+
+function handleSignOut() {
+    chrome.identity.getAuthToken({ interactive: false }, function(token) {
+        if (token) {
+            window.fetch('https://accounts.google.com/o/oauth2/revoke?token=' + token);
+            chrome.identity.removeCachedAuthToken({ token: token }, function() {
+                setLoggedOutUI();
+                alert("Signed out successfully.");
+                location.reload(); 
+            });
+        } else {
+            setLoggedOutUI();
+        }
+    });
+}
+
+// --- SCRAPING & LOGIC ---
 
 async function startScrapingProcess() {
   const statusText = document.getElementById("status-text");
@@ -27,7 +87,7 @@ async function startScrapingProcess() {
           const rawData = results && results[0] ? results[0].result : [];
 
           if (rawData && rawData.length > 0) {
-              statusText.textContent = "Analyzing duplicates...";
+              statusText.textContent = "Processing data...";
               let processedData = await processMemory(rawData);
               processedData = await checkDuplicateEvents(processedData);
 
@@ -47,15 +107,16 @@ async function startScrapingProcess() {
   attempt();
 }
 
-/* =========================================
-   DUPLICATE DETECTION
-   ========================================= */
 async function checkDuplicateEvents(sessions) {
     return new Promise((resolve) => {
         chrome.identity.getAuthToken({ interactive: false }, async function(token) {
-            if (chrome.runtime.lastError || !token) { resolve(sessions); return; }
+            if (chrome.runtime.lastError || !token) {
+                setLoggedOutUI();
+                resolve(sessions); 
+                return;
+            }
 
-            document.getElementById("signOutBtn").style.display = "block";
+            setLoggedInUI();
 
             let minTime = null;
             let maxTime = null;
@@ -112,52 +173,38 @@ async function checkDuplicateEvents(sessions) {
     });
 }
 
-function handleSignOut() {
-    chrome.identity.getAuthToken({ interactive: false }, function(token) {
-        if (token) {
-            chrome.identity.removeCachedAuthToken({ token: token }, function() {
-                alert("Signed out!");
-                document.getElementById("signOutBtn").style.display = "none";
-                location.reload(); 
-            });
-        }
-    });
-}
+// --- SYNC FUNCTION ---
 
-/* =========================================
-   SYNC LOGIC (With Icons)
-   ========================================= */
 async function handleSync() {
     const btn = document.getElementById("syncBtn");
     
-    const checkboxes = document.querySelectorAll(".sync-checkbox:checked");
-    if (checkboxes.length === 0) {
-        alert("Please select at least one class to sync.");
-        return;
-    }
-
-    const indicesToSync = Array.from(checkboxes).map(cb => parseInt(cb.getAttribute("data-index")));
-    
-    btn.disabled = true;
-    // Replace icon with Hourglass and use white filter
-    btn.innerHTML = `<img src="icons/Hourglass.svg" class="icon icon-white"> Syncing...`;
-    
-    document.getElementById("schedule-list").style.opacity = "0.5"; 
-    const progContainer = document.getElementById("progress-container");
-    const progBar = document.getElementById("prog-bar");
-    const progTitle = document.getElementById("prog-title");
-    const progDetail = document.getElementById("prog-detail");
-    
-    progContainer.style.display = "block";
-    
+    // Check Auth First
     chrome.identity.getAuthToken({ interactive: true }, async function(token) {
         if (chrome.runtime.lastError || !token) {
-            alert("Login required.");
-            resetUI();
+            alert("Please Sign In first.");
+            setLoggedOutUI();
+            return;
+        }
+        setLoggedInUI();
+
+        const checkboxes = document.querySelectorAll(".sync-checkbox:checked");
+        if (checkboxes.length === 0) {
+            alert("Please select at least one class to sync.");
             return;
         }
 
-        document.getElementById("signOutBtn").style.display = "block";
+        const indicesToSync = Array.from(checkboxes).map(cb => parseInt(cb.getAttribute("data-index")));
+        
+        btn.disabled = true;
+        btn.innerHTML = `<img src="icons/Hourglass.svg" class="icon icon-white"> Syncing...`;
+        
+        document.getElementById("schedule-list").style.opacity = "0.5"; 
+        const progContainer = document.getElementById("progress-container");
+        const progBar = document.getElementById("prog-bar");
+        const progTitle = document.getElementById("prog-title");
+        const progDetail = document.getElementById("prog-detail");
+        
+        progContainer.style.display = "block";
         
         let successCount = 0;
         const total = indicesToSync.length;
@@ -204,20 +251,26 @@ async function handleSync() {
             displaySchedule(currentSchedule); 
         }, 800);
     });
-
-    function resetUI() {
-        btn.disabled = false;
-        // Reset button icon to Calendar with white filter
-        btn.innerHTML = `<img src="icons/Calender.svg" class="icon icon-white"> Sync Selected`;
-        document.getElementById("schedule-list").style.opacity = "1";
-        progContainer.style.display = "none";
-        progBar.style.width = "0%";
-    }
 }
 
-/* =========================================
-   HELPERS & DISPLAY (With Icons)
-   ========================================= */
+// Global Reset UI Function (Fixed Scope Issue)
+function resetUI() {
+    const btn = document.getElementById("syncBtn");
+    const progContainer = document.getElementById("progress-container");
+    const progBar = document.getElementById("prog-bar");
+    const list = document.getElementById("schedule-list");
+
+    if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = `<img src="icons/Calender.svg" class="icon icon-white"> Sync Selected`;
+    }
+    if (list) list.style.opacity = "1";
+    if (progContainer) progContainer.style.display = "none";
+    if (progBar) progBar.style.width = "0%";
+}
+
+// --- HELPERS ---
+
 function createEventResource(session) {
     let dateStr = session.date;
     if (dateStr.includes("Today")) {
@@ -308,7 +361,6 @@ function displaySchedule(sessions) {
     if (session.type === "online") cardClass = "card-online";
     if (session.type === "holiday") cardClass = "card-holiday";
 
-    // Location / Button HTML with colored classes
     let locationHtml = `<span class="room-badge"><img src="icons/Location.svg" class="icon icon-location"> ${session.room}</span>`;
     
     if (session.type === "online") {
@@ -319,15 +371,12 @@ function displaySchedule(sessions) {
       locationHtml = `<span style="font-size:12px; color:#4CAF50; font-weight:bold;"><img src="icons/Holiday.svg" class="icon icon-holiday"> Holiday</span>`;
     }
 
-    // Checkbox or Synced Badge
     let actionHtml = "";
     if (session.type === "holiday") {
         actionHtml = ""; 
     } else if (session.isSynced) {
-        // Use 'icon-check' to color the checkmark green
         actionHtml = `<div class="synced-badge"><img src="icons/Checkbox Checked.svg" class="icon icon-check"> Synced</div>`;
     } else {
-        // Standard input (colored by CSS filter)
         actionHtml = `<input type="checkbox" class="sync-checkbox" data-index="${index}" checked>`;
     }
 

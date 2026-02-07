@@ -47,8 +47,8 @@ function handleSignIn() {
         }
         setLoggedInUI();
         if (currentSchedule.length > 0) {
-            document.getElementById("status-text").textContent = "Refreshing sync status...";
-            const updatedData = await checkDuplicateEvents(currentSchedule);
+            document.getElementById("status-text").textContent = "Auto-Updating Links...";
+            const updatedData = await checkAndHealEvents(currentSchedule);
             currentSchedule = updatedData;
             displaySchedule(updatedData);
         }
@@ -89,7 +89,9 @@ async function startScrapingProcess() {
           if (rawData && rawData.length > 0) {
               statusText.textContent = "Processing data...";
               let processedData = await processMemory(rawData);
-              processedData = await checkDuplicateEvents(processedData);
+              
+              // Run the Smart Healer
+              processedData = await checkAndHealEvents(processedData);
 
               currentSchedule = processedData; 
               displaySchedule(processedData);
@@ -107,7 +109,10 @@ async function startScrapingProcess() {
   attempt();
 }
 
-async function checkDuplicateEvents(sessions) {
+/**
+ * SMART HEALER: Checks duplicates AND Auto-Updates Links
+ */
+async function checkAndHealEvents(sessions) {
     return new Promise((resolve) => {
         chrome.identity.getAuthToken({ interactive: false }, async function(token) {
             if (chrome.runtime.lastError || !token) {
@@ -118,6 +123,7 @@ async function checkDuplicateEvents(sessions) {
 
             setLoggedInUI();
 
+            // 1. Calculate Time Range
             let minTime = null;
             let maxTime = null;
 
@@ -138,6 +144,7 @@ async function checkDuplicateEvents(sessions) {
             const maxIso = new Date(maxTime).toISOString();
 
             try {
+                // 2. Fetch Existing Events
                 const response = await fetch(
                     `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${minIso}&timeMax=${maxIso}&singleEvents=true&maxResults=2500`, 
                     { headers: { 'Authorization': 'Bearer ' + token } }
@@ -147,22 +154,51 @@ async function checkDuplicateEvents(sessions) {
                 
                 const data = await response.json();
                 const existingEvents = data.items || [];
-                const existingMap = new Set();
+                
+                // Map Key: "Subject_StartTimeMs" -> Event Object
+                const existingMap = new Map();
                 
                 existingEvents.forEach(evt => {
                     if (evt.start && evt.start.dateTime) {
                         const evtStartMs = new Date(evt.start.dateTime).getTime();
                         const key = `${evt.summary.trim()}_${evtStartMs}`;
-                        existingMap.add(key);
+                        existingMap.set(key, evt);
                     }
                 });
 
-                sessions.forEach(session => {
+                // 3. Process Logic: Match -> Check Link -> Update if needed
+                for (let session of sessions) {
                     if (session.startTimeMs) {
                         const myKey = `${session.subject.trim()}_${session.startTimeMs}`;
-                        if (existingMap.has(myKey)) session.isSynced = true;
+                        
+                        if (existingMap.has(myKey)) {
+                            // MATCH FOUND!
+                            const existingEvt = existingMap.get(myKey);
+                            session.isSynced = true; // Mark as synced so we don't create duplicate
+                            
+                            // AUTO-HEAL LOGIC:
+                            // If we have a link, but the calendar event DOES NOT have that link...
+                            if (session.link && existingEvt.location !== session.link) {
+                                console.log(`Auto-Healing Link for: ${session.subject}`);
+                                
+                                // Perform PATCH request silently
+                                await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${existingEvt.id}`, {
+                                    method: 'PATCH',
+                                    headers: {
+                                        'Authorization': 'Bearer ' + token,
+                                        'Content-Type': 'application/json'
+                                    },
+                                    body: JSON.stringify({
+                                        location: session.link
+                                    })
+                                });
+                                
+                                // Update status to show it was just fixed
+                                session.wasAutoUpdated = true;
+                            }
+                        }
                     }
-                });
+                }
 
                 resolve(sessions);
             } catch (e) {
@@ -253,7 +289,6 @@ async function handleSync() {
     });
 }
 
-// Global Reset UI Function (Fixed Scope Issue)
 function resetUI() {
     const btn = document.getElementById("syncBtn");
     const progContainer = document.getElementById("progress-container");
@@ -371,9 +406,15 @@ function displaySchedule(sessions) {
       locationHtml = `<span style="font-size:12px; color:#4CAF50; font-weight:bold;"><img src="icons/Holiday.svg" class="icon icon-holiday"> Holiday</span>`;
     }
 
+    // Badge Logic: Auto-Updated, Synced, or Checkbox
     let actionHtml = "";
     if (session.type === "holiday") {
         actionHtml = ""; 
+    } else if (session.wasAutoUpdated) {
+        // Special badge for items we just fixed
+        actionHtml = `<div class="synced-badge" style="color:#006097; background:#e0f7fa; border-color:#b2ebf2;">
+            <img src="icons/VideoCam.svg" class="icon icon-location"> Updated
+        </div>`;
     } else if (session.isSynced) {
         actionHtml = `<div class="synced-badge"><img src="icons/Checkbox Checked.svg" class="icon icon-check"> Synced</div>`;
     } else {

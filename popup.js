@@ -89,8 +89,6 @@ async function startScrapingProcess() {
           if (rawData && rawData.length > 0) {
               statusText.textContent = "Processing data...";
               let processedData = await processMemory(rawData);
-              
-              // Run the Smart Healer
               processedData = await checkAndHealEvents(processedData);
 
               currentSchedule = processedData; 
@@ -109,9 +107,6 @@ async function startScrapingProcess() {
   attempt();
 }
 
-/**
- * SMART HEALER: Checks duplicates AND Auto-Updates Links
- */
 async function checkAndHealEvents(sessions) {
     return new Promise((resolve) => {
         chrome.identity.getAuthToken({ interactive: false }, async function(token) {
@@ -123,7 +118,6 @@ async function checkAndHealEvents(sessions) {
 
             setLoggedInUI();
 
-            // 1. Calculate Time Range
             let minTime = null;
             let maxTime = null;
 
@@ -144,7 +138,6 @@ async function checkAndHealEvents(sessions) {
             const maxIso = new Date(maxTime).toISOString();
 
             try {
-                // 2. Fetch Existing Events
                 const response = await fetch(
                     `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${minIso}&timeMax=${maxIso}&singleEvents=true&maxResults=2500`, 
                     { headers: { 'Authorization': 'Bearer ' + token } }
@@ -154,8 +147,6 @@ async function checkAndHealEvents(sessions) {
                 
                 const data = await response.json();
                 const existingEvents = data.items || [];
-                
-                // Map Key: "Subject_StartTimeMs" -> Event Object
                 const existingMap = new Map();
                 
                 existingEvents.forEach(evt => {
@@ -166,22 +157,15 @@ async function checkAndHealEvents(sessions) {
                     }
                 });
 
-                // 3. Process Logic: Match -> Check Link -> Update if needed
                 for (let session of sessions) {
                     if (session.startTimeMs) {
                         const myKey = `${session.subject.trim()}_${session.startTimeMs}`;
                         
                         if (existingMap.has(myKey)) {
-                            // MATCH FOUND!
                             const existingEvt = existingMap.get(myKey);
-                            session.isSynced = true; // Mark as synced so we don't create duplicate
+                            session.isSynced = true; 
                             
-                            // AUTO-HEAL LOGIC:
-                            // If we have a link, but the calendar event DOES NOT have that link...
                             if (session.link && existingEvt.location !== session.link) {
-                                console.log(`Auto-Healing Link for: ${session.subject}`);
-                                
-                                // Perform PATCH request silently
                                 await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${existingEvt.id}`, {
                                     method: 'PATCH',
                                     headers: {
@@ -192,8 +176,6 @@ async function checkAndHealEvents(sessions) {
                                         location: session.link
                                     })
                                 });
-                                
-                                // Update status to show it was just fixed
                                 session.wasAutoUpdated = true;
                             }
                         }
@@ -214,7 +196,6 @@ async function checkAndHealEvents(sessions) {
 async function handleSync() {
     const btn = document.getElementById("syncBtn");
     
-    // Check Auth First
     chrome.identity.getAuthToken({ interactive: true }, async function(token) {
         if (chrome.runtime.lastError || !token) {
             alert("Please Sign In first.");
@@ -252,6 +233,7 @@ async function handleSync() {
             const percentage = Math.round(((i) / total) * 100);
             progBar.style.width = `${percentage}%`;
             progTitle.textContent = `Syncing ${i + 1}/${total}`;
+            // SANITIZE: Use safe text for display
             progDetail.textContent = `${session.subject}`;
 
             const eventResource = createEventResource(session);
@@ -305,6 +287,17 @@ function resetUI() {
 }
 
 // --- HELPERS ---
+
+// NEW: Security Helper to prevent XSS
+function escapeHtml(text) {
+    if (!text) return "";
+    return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
 
 function createEventResource(session) {
     let dateStr = session.date;
@@ -387,7 +380,8 @@ function displaySchedule(sessions) {
     if (session.date !== lastDate) {
       const dateHeader = document.createElement("div");
       dateHeader.className = "date-header";
-      dateHeader.textContent = session.date;
+      // SANITIZE DATE
+      dateHeader.textContent = session.date; 
       container.appendChild(dateHeader);
       lastDate = session.date;
     }
@@ -396,22 +390,24 @@ function displaySchedule(sessions) {
     if (session.type === "online") cardClass = "card-online";
     if (session.type === "holiday") cardClass = "card-holiday";
 
-    let locationHtml = `<span class="room-badge"><img src="icons/Location.svg" class="icon icon-location"> ${session.room}</span>`;
+    // SANITIZE ROOM
+    let safeRoom = escapeHtml(session.room);
+    let locationHtml = `<span class="room-badge"><img src="icons/Location.svg" class="icon icon-location"> ${safeRoom}</span>`;
     
     if (session.type === "online") {
+        // Link is placed in HREF, ensure it starts with http/https for safety (basic check)
+        let safeLink = (session.link && session.link.startsWith("http")) ? session.link : "#";
         locationHtml = session.link 
-            ? `<a href="${session.link}" target="_blank" class="join-btn"><img src="icons/VideoCam.svg" class="icon icon-white"> JOIN CLASS</a>` 
+            ? `<a href="${safeLink}" target="_blank" class="join-btn"><img src="icons/VideoCam.svg" class="icon icon-white"> JOIN CLASS</a>` 
             : `<a href="https://teams.microsoft.com/" target="_blank" class="join-btn"><img src="icons/VideoCam.svg" class="icon icon-white"> JOIN TEAMS</a>`;
     } else if (session.type === "holiday") {
       locationHtml = `<span style="font-size:12px; color:#4CAF50; font-weight:bold;"><img src="icons/Holiday.svg" class="icon icon-holiday"> Holiday</span>`;
     }
 
-    // Badge Logic: Auto-Updated, Synced, or Checkbox
     let actionHtml = "";
     if (session.type === "holiday") {
         actionHtml = ""; 
     } else if (session.wasAutoUpdated) {
-        // Special badge for items we just fixed
         actionHtml = `<div class="synced-badge" style="color:#006097; background:#e0f7fa; border-color:#b2ebf2;">
             <img src="icons/VideoCam.svg" class="icon icon-location"> Updated
         </div>`;
@@ -423,13 +419,16 @@ function displaySchedule(sessions) {
 
     const div = document.createElement("div");
     div.className = `session-card ${cardClass}`;
+
+    // SECURE INJECTION: We assume the variables are now 'safe' strings because of escapeHtml()
+    // This prevents <script> tags from running if they were hidden in the subject name.
     div.innerHTML = `
       ${actionHtml ? `<div style="margin-right:10px;">${actionHtml}</div>` : ""}
       <div class="card-content">
-        <span class="subject">${session.subject}</span>
-        ${session.faculty ? `<span class="faculty"><img src="icons/Person.svg" class="icon icon-faculty"> ${session.faculty}</span>` : ""}
+        <span class="subject">${escapeHtml(session.subject)}</span>
+        ${session.faculty ? `<span class="faculty"><img src="icons/Person.svg" class="icon icon-faculty"> ${escapeHtml(session.faculty)}</span>` : ""}
         <div class="details">
-          <span class="time">${session.time !== "All Day" ? `<img src="icons/Alarm.svg" class="icon icon-time"> ` + session.time : ""}</span>
+          <span class="time">${session.time !== "All Day" ? `<img src="icons/Alarm.svg" class="icon icon-time"> ` + escapeHtml(session.time) : ""}</span>
           ${locationHtml}
         </div>
       </div>

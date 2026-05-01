@@ -15,8 +15,24 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 });
 
 // The "Heist" Function: We now know exactly what the vault is called.
+// The "Heist" Function: Now with vault-cracking logic
 function stealTokensFromPage() {
-    return localStorage.getItem('qW0bzwe6hm4r') || sessionStorage.getItem('qW0bzwe6hm4r');
+    let raw = localStorage.getItem('qW0bzwe6hm4r') || sessionStorage.getItem('qW0bzwe6hm4r');
+    if (!raw) return null;
+    
+    try {
+        // If they saved it as a JSON object, parse it
+        let parsed = JSON.parse(raw);
+        if (typeof parsed === 'object' && parsed !== null) {
+            // Guess common keys if it's an object
+            return parsed.access_token || parsed.token || parsed.jwt || raw;
+        }
+        // If it was just a string with quotes around it, parsing removes the quotes
+        return parsed; 
+    } catch (e) {
+        // Not JSON, just a raw string. Strip any accidental quotes just in case.
+        return raw.replace(/['"]+/g, '');
+    }
 }
 
 async function performSilentSync() {
@@ -38,10 +54,20 @@ async function performSilentSync() {
         return; 
     }
 
-    const injectionResults = await chrome.scripting.executeScript({
+  const injectionResults = await chrome.scripting.executeScript({
         target: { tabId: tabs[0].id },
         function: stealTokensFromPage,
     });
+    
+    let bearerToken = injectionResults[0].result;
+    
+    if (!bearerToken) {
+        console.error("TimePort: Token heist failed. The key 'qW0bzwe6hm4r' was empty.");
+        return;
+    }
+
+    // LET'S SEE WHAT WE STOLE
+    console.log("TimePort: Token Stolen Successfully! Looks like: ", bearerToken.substring(0, 30) + "...");;
     
     let bearerToken = injectionResults[0].result;
     

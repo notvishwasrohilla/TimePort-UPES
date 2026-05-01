@@ -1,14 +1,24 @@
 {
   "manifest_version": 3,
   "name": "TimePort",
-  "version": "0.4",
-  "description": "Scrapes University Schedule and syncs to Google Calendar.",
-  "permissions": ["activeTab", "scripting", "storage", "identity"],
+  "version": "0.5",
+  "permissions": [
+    "activeTab", 
+    "scripting", 
+    "storage", 
+    "identity",
+    "alarms",
+    "cookies"
+  ],
+  "host_permissions": [
+    "https://myupes-beta.upes.ac.in/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
   "oauth2": {
     "client_id": "887400701013-rlcudhl3sm36usbpckc9qp9d1nv0sgff.apps.googleusercontent.com",
-    "scopes": [
-      "https://www.googleapis.com/auth/calendar.events"
-    ]
+    "scopes": ["https://www.googleapis.com/auth/calendar.events"]
   },
   "action": {
     "default_popup": "popup.html"

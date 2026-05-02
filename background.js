@@ -1,7 +1,4 @@
-// background.js — The v0.5 Watchman Engine (Cleaned & Fixed)
-
-const UPES_BASE_URL = "https://myupes-beta.upes.ac.in/";
-const TIMETABLE_API = "https://myupes-beta.upes.ac.in/apigateway/api/timetable";
+// background.js — The v0.6 Watchman (The Trojan Horse Maneuver)
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.alarms.create('checkTimetable', { periodInMinutes: 240 });
@@ -9,72 +6,29 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === 'checkTimetable') {
-    performSilentSync();
-  }
+  if (alarm.name === 'checkTimetable') performSilentSync();
 });
 
-// The "Heist" Function: The Ultimate Vault Cracker (Regex)
-function stealTokensFromPage() {
+// THE TROJAN HORSE: This entire function gets beamed INSIDE the UPES tab.
+// Because it runs inside the webpage, the browser handles Cookies and Origin automatically!
+async function trojanHorseFetch() {
+    // 1. Crack the vault
     let raw = localStorage.getItem('qW0bzwe6hm4r') || sessionStorage.getItem('qW0bzwe6hm4r');
-    if (!raw) return null;
-
-    // A JWT always starts with eyJ and has three parts separated by dots.
-    // This regex hunts down that exact pattern anywhere inside the messy JSON string.
-    const jwtRegex = /eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+/g;
-    const matches = raw.match(jwtRegex);
-
-    if (matches && matches.length > 0) {
-        return matches[0]; // Return the clean, pure token!
-    }
-    
-    return null; // If no token pattern is found
-}
-
-async function performSilentSync() {
-  console.log('TimePort: Starting background sync check...');
-
-  // 1. Get the Cookies
-  const cookies = await chrome.cookies.getAll({ url: UPES_BASE_URL });
-  if (cookies.length === 0) {
-    console.warn('TimePort: No active session cookies. User must log in.');
-    return;
-  }
-  const cookieString = cookies.map(c => `${c.name}=${c.value}`).join('; ');
-
-  try {
-    // 2. Execute the Token Heist
-    const tabs = await chrome.tabs.query({ url: "https://myupes-beta.upes.ac.in/*" });
-    if (tabs.length === 0) {
-        console.warn('TimePort: No open UPES tab found to steal the Bearer token. Cannot perform background sync right now.');
-        return; 
+    let token = null;
+    if (raw) {
+        const matches = raw.match(/eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+/g);
+        if (matches) token = matches[0];
     }
 
-    const injectionResults = await chrome.scripting.executeScript({
-        target: { tabId: tabs[0].id },
-        function: stealTokensFromPage,
-    });
-    
-    let bearerToken = injectionResults[0].result;
-    
-    if (!bearerToken) {
-        console.error("TimePort: Token heist failed. The key 'qW0bzwe6hm4r' was empty.");
-        return;
-    }
+    if (!token) return { error: "No token found in page memory." };
 
-    console.log("TimePort: Token Stolen Successfully! Looks like: ", bearerToken.substring(0, 30) + "...");
+    // 2. Format Today's Date
+    const d = new Date();
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const todayStr = `${d.getDate().toString().padStart(2, '0')}-${months[d.getMonth()]}-${d.getFullYear()}`;
 
-    // 3. Format Today's Date
-    const getTodayFormatted = () => {
-      const d = new Date();
-      const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-      const day = d.getDate().toString().padStart(2, '0');
-      return `${day}-${months[d.getMonth()]}-${d.getFullYear()}`;
-    };
-    const todayStr = getTodayFormatted();
-
-    // 4. Construct the Payload
-    const requestPayload = {
+    // 3. Construct Payload
+    const payload = {
       "ActivityCode": "studentdashboard",
       "TimeTableContextDetails": {
         "SlotStartDate": todayStr,
@@ -83,30 +37,71 @@ async function performSilentSync() {
       }
     };
 
-    // 5. The Final, Perfected Fetch Request
-    const response = await fetch(TIMETABLE_API, {
-      method: 'POST',
-      headers: {
-        'Cookie': cookieString,
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${bearerToken}`,
-        'x-applicationname': 'connectportal',
-        'x-appsecret': 'ku7GUMtyT8er51rTfTc7HC',
-        'x-requestfrom': 'web',
-        'x-studentUniqueId': '71efd45f-e26f-4a1d-8b30-2ca18ebf9e6e'
-      },
-      body: JSON.stringify(requestPayload) 
+    // 4. Perform the Fetch from INSIDE the webpage
+    try {
+        const response = await fetch("https://myupes-beta.upes.ac.in/apigateway/api/timetable", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+                'x-applicationname': 'connectportal',
+                'x-appsecret': 'ku7GUMtyT8er51rTfTc7HC',
+                'x-requestfrom': 'web',
+                'x-studentUniqueId': '71efd45f-e26f-4a1d-8b30-2ca18ebf9e6e'
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) return { error: `Server rejected request: ${response.status}` };
+        
+        const data = await response.json();
+        return { success: true, data: data }; // Send the data back to the extension!
+    } catch (e) {
+        return { error: e.message };
+    }
+}
+
+// THE COMMANDER: This runs in the background and controls the Trojan Horse
+async function performSilentSync() {
+  console.log('TimePort: Initiating Trojan Horse maneuver...');
+
+  try {
+    const tabs = await chrome.tabs.query({ url: "https://myupes-beta.upes.ac.in/*" });
+    if (tabs.length === 0) {
+        console.warn('TimePort: No open UPES tab found to act as a host.');
+        return; 
+    }
+
+    // Inject and execute the function inside the active tab
+    const injectionResults = await chrome.scripting.executeScript({
+        target: { tabId: tabs[0].id },
+        function: trojanHorseFetch,
     });
+    
+    const result = injectionResults[0].result;
+    
+    if (result.error) {
+        console.error("TimePort: Trojan Horse failed -", result.error);
+        return;
+    }
 
-    if (!response.ok) throw new Error(`Portal request failed: ${response.status}`);
+    console.log('TimePort: Trojan Horse Success! Received Data:', result.data);
 
-    const rawData = await response.json();
-    console.log('TimePort: Successfully retrieved background data.', rawData);
-
-    if (rawData && rawData.length > 0) {
-      const processedData = formatGatewayData(rawData);
+    if (result.data && result.data.length > 0) {
+      const processedData = formatGatewayData(result.data);
       await chrome.storage.local.set({ lastScrapedData: processedData });
       console.log('TimePort: Data cached locally.');
+
+      // --- THE SWARM PUSH ---
+      const cohortId = processedData[0]?.cohort;
+      if (cohortId) {
+          console.log(`TimePort: Pushing schedule to Cloud Swarm for cohort ${cohortId}...`);
+          await pushToSwarm(cohortId, processedData);
+      } else {
+          console.warn('TimePort: Could not identify Cohort ID. Swarm push aborted.');
+      }
+    } else {
+      console.log('TimePort: Scrape successful, but no classes scheduled for today.');
     }
 
   } catch (err) {
@@ -114,6 +109,7 @@ async function performSilentSync() {
   }
 }
 
+// Helper: Formats the raw JSON
 function formatGatewayData(slots) {
   return slots.map(slot => ({
     source: "gateway",

@@ -1,4 +1,4 @@
-// background.js — The v0.5 Watchman Engine (The Token Heist)
+// background.js — The v0.5 Watchman Engine (Cleaned & Fixed)
 
 const UPES_BASE_URL = "https://myupes-beta.upes.ac.in/";
 const TIMETABLE_API = "https://myupes-beta.upes.ac.in/apigateway/api/timetable";
@@ -14,25 +14,21 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   }
 });
 
-// The "Heist" Function: We now know exactly what the vault is called.
-// The "Heist" Function: Now with vault-cracking logic
+// The "Heist" Function: The Ultimate Vault Cracker (Regex)
 function stealTokensFromPage() {
     let raw = localStorage.getItem('qW0bzwe6hm4r') || sessionStorage.getItem('qW0bzwe6hm4r');
     if (!raw) return null;
-    
-    try {
-        // If they saved it as a JSON object, parse it
-        let parsed = JSON.parse(raw);
-        if (typeof parsed === 'object' && parsed !== null) {
-            // Guess common keys if it's an object
-            return parsed.access_token || parsed.token || parsed.jwt || raw;
-        }
-        // If it was just a string with quotes around it, parsing removes the quotes
-        return parsed; 
-    } catch (e) {
-        // Not JSON, just a raw string. Strip any accidental quotes just in case.
-        return raw.replace(/['"]+/g, '');
+
+    // A JWT always starts with eyJ and has three parts separated by dots.
+    // This regex hunts down that exact pattern anywhere inside the messy JSON string.
+    const jwtRegex = /eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+/g;
+    const matches = raw.match(jwtRegex);
+
+    if (matches && matches.length > 0) {
+        return matches[0]; // Return the clean, pure token!
     }
+    
+    return null; // If no token pattern is found
 }
 
 async function performSilentSync() {
@@ -54,7 +50,7 @@ async function performSilentSync() {
         return; 
     }
 
-  const injectionResults = await chrome.scripting.executeScript({
+    const injectionResults = await chrome.scripting.executeScript({
         target: { tabId: tabs[0].id },
         function: stealTokensFromPage,
     });
@@ -66,15 +62,7 @@ async function performSilentSync() {
         return;
     }
 
-    // LET'S SEE WHAT WE STOLE
-    console.log("TimePort: Token Stolen Successfully! Looks like: ", bearerToken.substring(0, 30) + "...");;
-    
-    let bearerToken = injectionResults[0].result;
-    
-    if (!bearerToken) {
-        console.error("TimePort: Token heist failed. The key 'qW0bzwe6hm4r' was empty.");
-        return;
-    }
+    console.log("TimePort: Token Stolen Successfully! Looks like: ", bearerToken.substring(0, 30) + "...");
 
     // 3. Format Today's Date
     const getTodayFormatted = () => {

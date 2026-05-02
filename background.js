@@ -1,5 +1,8 @@
 // background.js — The v0.6 Watchman (The Trojan Horse Maneuver)
 
+// 1. Import our hidden keys from config.js
+importScripts('config.js');
+
 chrome.runtime.onInstalled.addListener(() => {
   chrome.alarms.create('checkTimetable', { periodInMinutes: 240 });
   console.log('TimePort: Watchman Alarm Set.');
@@ -10,7 +13,6 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 });
 
 // THE TROJAN HORSE: This entire function gets beamed INSIDE the UPES tab.
-// Because it runs inside the webpage, the browser handles Cookies and Origin automatically!
 async function trojanHorseFetch() {
     // 1. Crack the vault
     let raw = localStorage.getItem('qW0bzwe6hm4r') || sessionStorage.getItem('qW0bzwe6hm4r');
@@ -106,6 +108,36 @@ async function performSilentSync() {
 
   } catch (err) {
     console.error('TimePort: Background Sync Error:', err);
+  }
+}
+
+// THE CLOUD UPLINK: Pushes the local schedule to Supabase
+async function pushToSwarm(cohortId, formattedSessions) {
+  const endpoint = `${CONFIG.SUPABASE_URL}/rest/v1/timetables`;
+  
+  try {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'apikey': CONFIG.SUPABASE_KEY,
+        'Authorization': `Bearer ${CONFIG.SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'resolution=merge-duplicates' // Upsert: update if exists, insert if new
+      },
+      body: JSON.stringify({
+        cohort_id: cohortId,
+        schedule_data: formattedSessions,
+        last_updated: new Date().toISOString()
+      })
+    });
+
+    if (response.ok) {
+      console.log("TimePort: 🚀 Swarm successfully updated in the Cloud!");
+    } else {
+      console.error("TimePort: Cloud update failed.", await response.text());
+    }
+  } catch (err) {
+    console.error("TimePort: Network error while hitting Supabase", err);
   }
 }
 

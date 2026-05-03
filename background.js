@@ -75,9 +75,8 @@ async function syncToGoogleCalendar(sessions) {
 
         // --- PHASE 2: THE BUILDER (Add new classes / Skip existing) ---
         for (const session of sessions) {
-            const startISO = convertToISO(session.time.split(' - ')[0]);
-            const endISO = convertToISO(session.time.split(' - ')[1]);
-
+           const startISO = convertToISO(session.time.split(' - ')[0], session.date);
+           const endISO = convertToISO(session.time.split(' - ')[1], session.date);
             // Broaden search by 1 min to ensure we catch slightly off-timed events
             const searchStart = new Date(new Date(startISO).getTime() - 60000).toISOString();
             const searchEnd = new Date(new Date(endISO).getTime() + 60000).toISOString();
@@ -122,18 +121,32 @@ async function syncToGoogleCalendar(sessions) {
     });
 }
 
-function convertToISO(timeStr) {
-    const today = new Date();
-    const parts = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
-    if (!parts) return today.toISOString();
+function convertToISO(timeStr, exactDateStr = null) {
+    const targetDate = exactDateStr ? new Date(exactDateStr) : new Date();
 
-    let hours = parseInt(parts[1], 10);
-    const minutes = parseInt(parts[2], 10);
-    const ampm = parts[3].toUpperCase();
+    // Look for 12-hour format (e.g., "01:00 PM")
+    const ampmMatch = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+    // Look for 24-hour format (e.g., "13:00")
+    const militaryMatch = timeStr.match(/(\d{1,2}):(\d{2})/);
 
-    if (ampm === 'PM' && hours < 12) hours += 12;
-    if (ampm === 'AM' && hours === 12) hours = 0;
+    let hours = 0;
+    let minutes = 0;
 
-    today.setHours(hours, minutes, 0, 0);
-    return today.toISOString();
+    if (ampmMatch) {
+        hours = parseInt(ampmMatch[1], 10);
+        minutes = parseInt(ampmMatch[2], 10);
+        const ampm = ampmMatch[3].toUpperCase();
+
+        if (ampm === 'PM' && hours < 12) hours += 12;
+        if (ampm === 'AM' && hours === 12) hours = 0;
+    } else if (militaryMatch) {
+        hours = parseInt(militaryMatch[1], 10);
+        minutes = parseInt(militaryMatch[2], 10);
+    } else {
+        // If it's completely unreadable, default to midnight
+        return targetDate.toISOString(); 
+    }
+
+    targetDate.setHours(hours, minutes, 0, 0);
+    return targetDate.toISOString();
 }

@@ -1,85 +1,112 @@
-// content.js — The Inside Man (Auto-Cohort Edition)
-console.log("TimePort: Inside Man is active and scanning...");
+console.log("TimePort: Inside Man is active (API mode).");
 
-let lastScrapedData = ""; 
-let currentCohort = "UNKNOWN_COHORT";
+let lastPayloadString = "";
+let latestSessions = null;
+let currentCohort = null;
 
-// --- NEW: THE COHORT DETECTOR ---
-function detectCohort() {
-    // Looks for the standard UPES batch format anywhere on the page
-    // Pattern matches: [Letters]-[Letters]-[Letters]-[Letters]-[RomanNumerals]-[Letters/Numbers]
-    const pageText = document.body.innerText;
-    const batchRegex = /\b[A-Z0-9]+-[A-Z0-9]+-[A-Z0-9]+-[A-Z0-9]+-[IVX]+-[A-Z0-9]+\b/i;
-    const match = pageText.match(batchRegex);
+// -------------------------------------------------------------------------
+// Inject the page-world listener that captures the timetable API response.
+// content.js runs in an isolated world and can't see the app's fetch/XHR,
+// so inject.js does the capture and posts the trimmed payload back to us.
+// -------------------------------------------------------------------------
 
-    if (match) {
-        return match[0].toUpperCase(); // Ensure it's perfectly formatted
+function injectSniffer() {
+    try {
+        const s = document.createElement('script');
+        s.src = chrome.runtime.getURL('inject.js');
+        s.onload = () => s.remove();
+        (document.head || document.documentElement).appendChild(s);
+    } catch (e) {
+        console.warn("TimePort: injection failed", e.message);
     }
-    
-    return null; // Return null if we can't find it
+}
+injectSniffer();
+
+// -------------------------------------------------------------------------
+// Cohort resolution.
+// The payload lists a cohort per session as "BT-CSE-SPZ-CSF-VII-B14_<mod>";
+// inject.js already strips the "_<mod>" suffix. Shared lectures list several
+// cohorts, but the student's own batch is the ONE present in every session —
+// so we intersect across all sessions rather than guessing.
+// -------------------------------------------------------------------------
+
+function resolveCohort(sessions) {
+    if (!sessions.length) return null;
+
+    // Start from the first session's cohorts, keep only those seen everywhere.
+    let common = new Set(sessions[0].cohorts || []);
+    for (const s of sessions) {
+        const here = new Set(s.cohorts || []);
+        common = new Set([...common].filter((c) => here.has(c)));
+        if (common.size === 0) break;
+    }
+
+    if (common.size === 1) return [...common][0];
+
+    // Fallback: the cohort appearing in the most sessions.
+    const tally = {};
+    for (const s of sessions) {
+        for (const c of s.cohorts || []) tally[c] = (tally[c] || 0) + 1;
+    }
+    const ranked = Object.keys(tally).sort((a, b) => tally[b] - tally[a]);
+    return ranked[0] || null;
 }
 
-function scanForSchedule() {
-    const sessions = [];
-    const isTimetable = document.querySelector("kendo-scheduler") !== null;
+// -------------------------------------------------------------------------
+// Receive the payload from inject.js
+// -------------------------------------------------------------------------
 
-    // Try to find the cohort. If we can't find it, use a safe fallback so the script doesn't crash.
-    const detectedCohort = detectCohort();
-    if (detectedCohort) {
-        currentCohort = detectedCohort;
-    } else if (currentCohort === "UNKNOWN_COHORT") {
-        console.warn("TimePort Debug: Could not find Cohort string on this page. Using fallback.");
-        currentCohort = "BT-CSE-SPZ-CSF-VI-B14"; // Safe fallback just in case
-    }
+window.addEventListener('message', (e) => {
+    if (e.source !== window) return;
+    const d = e.data;
+    if (!d || d.__timeport !== true || !Array.isArray(d.sessions)) return;
 
-    if (isTimetable) {
-        const events = document.querySelectorAll(".k-event");
-        
-        events.forEach((event, index) => {
-            const details = event.querySelector(".event-in-details");
-            if (details) {
-                const subject = details.getAttribute("titlemodulename");
-                const time = details.getAttribute("titleitem"); 
-                let room = details.getAttribute("titlevenuename") || "N/A";
-                room = room.split('(')[0].trim(); 
-                
-                const aria = event.getAttribute("aria-label") || "";
-                const ariaParts = aria.split(','); 
-                const exactDate = ariaParts.length > 1 ? ariaParts[1].trim() : null; 
+    handleSessions(d.sessions, { auto: true });
+});
 
-                if (subject && time && time.includes("-") && exactDate) {
-                    sessions.push({ subject, time, room, date: exactDate });
-                }
-            }
-        });
+function handleSessions(sessions, opts = {}) {
+    latestSessions = sessions;
+    currentCohort = resolveCohort(sessions);
+
+    const payloadString = JSON.stringify(sessions);
+    const changed = payloadString !== lastPayloadString;
+
+    if (!currentCohort) {
+        console.warn("TimePort: cohort could not be resolved — cloud push will be skipped.");
     } else {
-        const items = document.querySelectorAll("li.course-red-wrapper");
-        items.forEach(item => {
-            const subject = item.querySelector("b")?.innerText;
-            const time = item.querySelector("p")?.childNodes[0]?.textContent?.trim();
-            let room = item.querySelector(".session-venue-info b")?.innerText || "N/A";
-            room = room.split('(')[0].trim();
-
-            if (subject && time && time.includes("-")) {
-                sessions.push({ subject, time, room, date: null }); 
-            }
-        });
+        console.log(`TimePort: cohort ${currentCohort}, ${sessions.length} sessions.`);
     }
 
-    const currentDataString = JSON.stringify(sessions);
-
-    if (sessions.length > 0 && currentDataString !== lastScrapedData) {
-        console.log(`TimePort: Captured ${sessions.length} sessions from ${isTimetable ? 'Timetable' : 'Dashboard'}.`);
-        console.log(`TimePort: Cohort locked as [${currentCohort}]. Beaming to Watchman...`);
-        
-        chrome.runtime.sendMessage({ 
-            action: "trigger_sync", 
-            data: sessions,
-            cohort: currentCohort // <-- DYNAMIC INJECTION
-        });
-        lastScrapedData = currentDataString; 
+    if (sessions.length > 0 && (changed || opts.force)) {
+        try {
+            chrome.runtime.sendMessage({
+                action: "trigger_sync",
+                data: sessions,
+                cohort: currentCohort || "UNKNOWN_COHORT"
+            });
+            lastPayloadString = payloadString;
+        } catch (err) {
+            // Extension reloaded — the old content script is orphaned.
+            console.warn("TimePort: extension context gone.", err.message);
+        }
     }
 }
 
-// Run the scanner every 3 seconds
-setInterval(scanForSchedule, 3000);
+// -------------------------------------------------------------------------
+// Force Sync from the popup.
+// The page may have already fetched the timetable (and we cached it), so a
+// force sync replays the last payload. If we've never seen one, tell the
+// popup so it can ask the user to open the Time Table tab.
+// -------------------------------------------------------------------------
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.action === "force_scan") {
+        if (latestSessions && latestSessions.length) {
+            handleSessions(latestSessions, { force: true });
+            sendResponse({ status: "scanned", count: latestSessions.length });
+        } else {
+            sendResponse({ status: "no_data", count: 0 });
+        }
+    }
+    return true;
+});

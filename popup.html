@@ -1,105 +1,56 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <style>
-    body { width: 350px; font-family: 'Segoe UI', Tahoma, sans-serif; padding: 10px; background-color: #f4f4f4; }
-    
-    /* --- ICON SYSTEM --- */
-    .icon { vertical-align: text-bottom; margin-right: 4px; display: inline-block; }
-    .icon-dark { filter: brightness(0); }
-    .icon-location { width: 14px; height: 14px; filter: brightness(0) invert(21%) sepia(86%) saturate(1751%) hue-rotate(188deg) brightness(96%) contrast(101%); }
-    .icon-time { width: 14px; height: 14px; filter: brightness(0) invert(42%) sepia(0%) saturate(0%) hue-rotate(139deg) brightness(96%) contrast(89%); }
-    .icon-faculty { width: 14px; height: 14px; filter: brightness(0) invert(24%) sepia(0%) saturate(1%) hue-rotate(162deg) brightness(93%) contrast(88%); }
-    .icon-check { width: 14px; height: 14px; filter: brightness(0) invert(35%) sepia(87%) saturate(399%) hue-rotate(87deg) brightness(93%) contrast(89%); }
-    .icon-holiday { width: 14px; height: 14px; filter: brightness(0) invert(59%) sepia(61%) saturate(464%) hue-rotate(89deg) brightness(93%) contrast(93%); }
-    .icon-white { width: 15px; height: 15px; }
-
-    /* --- CONTROLS & LAYOUT --- */
-    .header-controls { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #ddd; padding-bottom: 8px; margin-bottom: 10px;}
-    h2 { font-size: 16px; margin: 0; color: #333; }
-    
-    .auth-controls { display: flex; gap: 10px; align-items: center; }
-    
-    /* Auth Buttons */
-    #signOutBtn { font-size: 11px; color: #d9534f; cursor: pointer; text-decoration: underline; border: none; background: none; display: none; }
-    
-    #signInBtn { 
-        background: #fff; border: 1px solid #ccc; color: #333; padding: 4px 8px; border-radius: 4px;
-        font-size: 11px; font-weight: bold; cursor: pointer; display: none; 
-    }
-    #signInBtn:hover { background: #eee; }
-
-    #syncBtn {
-      background: #4285F4; color: white; border: none; padding: 6px 12px; border-radius: 4px;
-      font-size: 12px; font-weight: bold; cursor: pointer; display: none;
-      display: flex; align-items: center; gap: 5px;
-    }
-    #syncBtn:hover { background: #3367D6; }
-    #syncBtn:disabled { background: #ccc; cursor: not-allowed; }
-
-    /* Checkbox Styling */
-    .sync-checkbox {
-      appearance: none; -webkit-appearance: none;
-      width: 18px; height: 18px; cursor: pointer; border: none;
-      background-size: contain; background-repeat: no-repeat; background-position: center;
-      background-image: url('icons/Checkbox Blank.svg'); 
-      filter: brightness(0) invert(80%); 
-      margin-top: 4px;
-    }
-    .sync-checkbox:checked { background-image: url('icons/Checkbox Checked.svg'); filter: none; }
-
-    /* Progress & Loaders */
-    #progress-container { display: none; margin-bottom: 15px; background: white; padding: 10px; border-radius: 6px; border: 1px solid #ddd; }
-    .progress-label { font-size: 12px; font-weight: bold; color: #333; margin-bottom: 5px; display: block;}
-    .progress-sub { font-size: 11px; color: #666; margin-bottom: 5px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .progress-track { width: 100%; height: 8px; background: #eee; border-radius: 4px; overflow: hidden; }
-    .progress-fill { width: 0%; height: 100%; background: #4285F4; transition: width 0.3s ease; }
-    #status-container { text-align: center; padding: 20px; color: #666; font-size: 13px; }
-    .spinner { border: 3px solid #f3f3f3; border-top: 3px solid #006097; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; margin: 0 auto 10px auto; }
-    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
-    /* Cards */
-    .date-header { background: #e0e0e0; color: #555; padding: 6px; font-size: 11px; font-weight: bold; margin-top: 12px; border-radius: 4px; text-transform: uppercase; }
-    .session-card { background: #fff; padding: 10px; margin-top: 8px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); display: flex; gap: 10px; align-items: flex-start; }
-    .card-content { flex-grow: 1; }
-    .card-offline { border-left: 5px solid #006097; }
-    .card-online { border-left: 5px solid #e46097; }
-    .card-holiday { border-left: 5px solid #4CAF50; background: #e8f5e9; }
-    .subject { font-weight: 700; font-size: 14px; color: #222; display: block; }
-    .faculty { font-size: 11px; color: #666; font-style: italic; display: block; margin-bottom: 6px; }
-    .details { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #444; }
-    .room-badge { background: #eee; padding: 2px 6px; border-radius: 4px; font-weight: 600; color: #006097; display: flex; align-items: center; }
-    .join-btn { background: #e46097; color: white; text-decoration: none; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; display: flex; align-items: center; gap: 4px; }
-    .synced-badge { font-size: 11px; color: #2e7d32; font-weight: bold; background: #e8f5e9; padding: 2px 6px; border-radius: 4px; border: 1px solid #c8e6c9; display: flex; align-items: center; }
-  </style>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-  <div class="header-controls">
-    <h2>TimePort</h2>
-    <div class="auth-controls">
-      <button id="signInBtn">Sign In</button>
-      <button id="signOutBtn">Sign Out</button>
-      <button id="syncBtn">
-        <img src="icons/Calender.svg" class="icon icon-white"> Sync Selected
-      </button>
-    </div>
-  </div>
-  
-  <div id="progress-container">
-    <span class="progress-label" id="prog-title">Syncing...</span>
-    <span class="progress-sub" id="prog-detail">Waiting to start</span>
-    <div class="progress-track">
-      <div class="progress-fill" id="prog-bar"></div>
-    </div>
-  </div>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <span class="icon">🚀</span>
+                <h1>TimePort</h1>
+            </div>
+            <div class="auth-container">
+                <div id="auth-status" class="auth-pill logged-out">Checking...</div>
+                <button id="auth-action-btn" class="auth-btn">Log In</button>
+            </div>
+        </header>
 
-  <div id="status-container">
-    <div class="spinner"></div>
-    <span id="status-text">Searching for schedule...</span>
-  </div>
+        <main>
+            <div class="status-card">
+                <div class="status-header">
+                    <div class="pulse-ring"></div>
+                    <h2>Watchman Active</h2>
+                </div>
+                <p class="subtitle">Scraping UPES Portal</p>
+            </div>
 
-  <div id="schedule-list"></div>
-  <script src="popup.js"></script>
+            <div class="info-row">
+                <span class="label">Last Synced:</span>
+                <span class="value" id="last-sync-time">Never</span>
+            </div>
+            
+            <div class="info-row">
+                <span class="label">Detected Cohort:</span>
+                <span class="value" id="cohort-display">Awaiting...</span>
+            </div>
+
+            <button id="force-sync-btn" class="primary-btn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.59-9.21l5.94 4.06"/></svg>
+                Force Sync Now
+            </button>
+
+            <div id="sync-report" class="sync-report"></div>
+
+            <div class="schedule-section">
+                <h3>Today's Mission</h3>
+                <div id="schedule-container" class="schedule-container">
+                    <p class="empty-state">No classes found for today.</p>
+                </div>
+            </div>
+        </main>
+    </div>
+    <script src="popup.js"></script>
 </body>
 </html>

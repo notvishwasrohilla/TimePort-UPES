@@ -1,0 +1,288 @@
+:root {
+    --bg-color: #0f172a;
+    --card-bg: #1e293b;
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+    --accent: #3b82f6;
+    --accent-hover: #2563eb;
+    --success: #10b981;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-main);
+    width: 360px; /* Increased to fit everything comfortably */
+    box-sizing: border-box;
+}
+
+.container {
+    padding: 20px;
+    width: 100%;
+    box-sizing: border-box;
+}
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    border-bottom: 1px solid #334155;
+    padding-bottom: 12px;
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.logo h1 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+.version {
+    font-size: 12px;
+    color: var(--text-muted);
+    background: var(--card-bg);
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.status-card {
+    background: var(--card-bg);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 20px;
+    border: 1px solid #334155;
+}
+
+.status-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 4px;
+}
+
+.status-header h2 {
+    margin: 0;
+    font-size: 16px;
+    color: var(--success);
+}
+
+.pulse-ring {
+    width: 10px;
+    height: 10px;
+    background-color: var(--success);
+    border-radius: 50%;
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+    70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+.subtitle {
+    margin: 0;
+    font-size: 12px;
+    color: var(--text-muted);
+    padding-left: 22px;
+}
+
+.info-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    font-size: 13px;
+}
+
+.label { color: var(--text-muted); }
+.value { font-family: monospace; color: var(--accent); }
+
+.primary-btn {
+    width: 100%;
+    padding: 12px;
+    margin-top: 10px;
+    background-color: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    transition: background-color 0.2s;
+}
+
+.primary-btn:hover {
+    background-color: var(--accent-hover);
+}
+
+.primary-btn:active {
+    transform: scale(0.98);
+}
+
+/* --- NEW STYLES --- */
+.container { width: 340px; } /* Slightly wider to fit everything */
+
+.auth-container {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+}
+
+.auth-pill {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-weight: 600;
+}
+
+.auth-pill.logged-in { background-color: rgba(16, 185, 129, 0.2); color: var(--success); }
+.auth-pill.logged-out { background-color: rgba(244, 63, 94, 0.2); color: #f43f5e; }
+
+.auth-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 11px;
+    cursor: pointer;
+    text-decoration: underline;
+}
+.auth-btn:hover { color: var(--text-main); }
+
+.schedule-section {
+    margin-top: 20px;
+    border-top: 1px solid #334155;
+    padding-top: 16px;
+}
+
+.schedule-section h3 {
+    margin: 0 0 12px 0;
+    font-size: 14px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.schedule-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.empty-state {
+    font-size: 12px;
+    color: var(--text-muted);
+    text-align: center;
+    font-style: italic;
+}
+
+/* The Class Tiles */
+.class-tile {
+    background: #1e293b;
+    border-left: 3px solid var(--accent);
+    padding: 10px 12px;
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.tile-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.tile-subject {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.tile-time {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-family: monospace;
+}
+
+.tile-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 4px;
+}
+
+.tile-room {
+    font-size: 12px;
+    color: #cbd5e1;
+}
+
+.teams-link {
+    background-color: #5b5fc7; /* MS Teams Purple */
+    color: white;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: bold;
+    text-decoration: none;
+}
+
+.diag-btn {
+    margin-top: 6px;
+    width: 100%;
+    padding: 6px;
+    font-size: 11px;
+    background: transparent;
+    color: #94a3b8;
+    border: 1px dashed #475569;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.diag-btn:hover {
+    color: #e2e8f0;
+    border-color: #94a3b8;
+}
+
+/* Sync report — surfaces failures that used to die in the SW console */
+.sync-report {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    margin-top: 8px;
+}
+
+.report-line {
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.report-ok {
+    color: #4ade80;
+}
+
+.report-warn {
+    color: #fbbf24;
+}
+
+.report-error {
+    font-size: 10px;
+    color: #f87171;
+    line-height: 1.35;
+    word-break: break-word;
+}

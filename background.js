@@ -42,8 +42,24 @@ function dropToken(token) {
     });
 }
 
-// Returns a fetch wrapper that carries the bearer token and transparently
-// refreshes it once on a 401 (cached tokens go stale after ~1h).
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Google returns 403 rateLimitExceeded (not 429) when writes come in too fast.
+// It's a soft limit and Google's own guidance is to retry with exponential
+// backoff plus jitter rather than treat it as a failure.
+function isRetryable(status, bodyText) {
+    if (status === 429 || (status >= 500 && status <= 504)) return true;
+    if (status === 403 && /rateLimitExceeded|userRateLimitExceeded|backendError/i.test(bodyText || '')) {
+        return true;
+    }
+    return false;
+}
+
+const MAX_ATTEMPTS = 6;
+
+// Returns a fetch wrapper that carries the bearer token, transparently
+// refreshes it once on a 401 (cached tokens go stale after ~1h), and backs off
+// on rate limits. Resolves to { res, text } so callers never double-read body.
 function makeClient(initialToken) {
     let token = initialToken;
 
@@ -53,13 +69,33 @@ function makeClient(initialToken) {
             headers: { ...(opts.headers || {}), Authorization: 'Bearer ' + token }
         });
 
-        let res = await send();
-        if (res.status === 401) {
-            await dropToken(token);
-            token = await getToken(false);
-            res = await send();
+        for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+            let res = await send();
+
+            if (res.status === 401) {
+                await dropToken(token);
+                token = await getToken(false);
+                res = await send();
+            }
+
+            // 409 is meaningful to the caller (ID already exists), not an error.
+            if (res.ok || res.status === 409) {
+                res.bodyText = '';
+                return res;
+            }
+
+            const text = await res.text().catch(() => '');
+
+            if (!isRetryable(res.status, text) || attempt === MAX_ATTEMPTS - 1) {
+                res.bodyText = text;
+                return res;
+            }
+
+            // Full jitter: 0.5s, 1s, 2s, 4s, 8s … capped, randomized so
+            // parallel workers don't retry in lockstep.
+            const ceiling = Math.min(30000, 500 * 2 ** attempt);
+            await sleep(Math.random() * ceiling);
         }
-        return res;
     };
 }
 
@@ -328,7 +364,8 @@ async function listEvents(request, timeMin, timeMax, tagged) {
         if (pageToken) url.searchParams.set('pageToken', pageToken);
 
         const res = await request(url.toString());
-        if (!res.ok) throw new Error(`Calendar list failed: ${res.status} ${await res.text()}`);
+        // Body is already buffered by the client on failure; re-reading throws.
+        if (!res.ok) throw new Error(`Calendar list failed: ${res.status} ${res.bodyText || ''}`);
 
         const body = await res.json();
         (body.items || []).forEach((e) => items.push(e));
@@ -409,9 +446,22 @@ async function syncToGoogleCalendar(sessions) {
     }
     const toDelete = [...existing.keys()].filter((id) => !desired.has(id));
 
+    // Google's per-user write limit is easy to trip on a first bulk sync
+    // (200+ events). Keep concurrency modest; the retry/backoff in makeClient
+    // absorbs whatever still slips through.
+    const WRITE_CONCURRENCY = 3;
+
+    // A short, readable error rather than the full Google JSON blob.
+    const explain = (res) => {
+        const t = res.bodyText || '';
+        let msg = '';
+        try { msg = JSON.parse(t).error.message; } catch (e) { msg = t.slice(0, 120); }
+        return `${res.status}${msg ? ' ' + msg : ''}`;
+    };
+
     // Insert. A 409 means the ID exists (possibly as a soft-deleted event), so
     // fall through to an update rather than dropping the session.
-    const insertResults = await pool(toInsert, 5, async (event) => {
+    const insertResults = await pool(toInsert, WRITE_CONCURRENCY, async (event) => {
         const res = await request(CAL_BASE, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -423,27 +473,27 @@ async function syncToGoogleCalendar(sessions) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(event)
             });
-            if (!put.ok) throw new Error(`${event.summary}: update after conflict ${put.status}`);
+            if (!put.ok) throw new Error(`${event.summary}: update after conflict ${explain(put)}`);
             return 'updated';
         }
-        if (!res.ok) throw new Error(`${event.summary}: insert ${res.status} ${await res.text()}`);
+        if (!res.ok) throw new Error(`${event.summary}: insert ${explain(res)}`);
         return 'inserted';
     });
 
-    const updateResults = await pool(toUpdate, 5, async (event) => {
+    const updateResults = await pool(toUpdate, WRITE_CONCURRENCY, async (event) => {
         const res = await request(`${CAL_BASE}/${event.id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(event)
         });
-        if (!res.ok) throw new Error(`${event.summary}: update ${res.status}`);
+        if (!res.ok) throw new Error(`${event.summary}: update ${explain(res)}`);
         return 'updated';
     });
 
-    const deleteResults = await pool(toDelete, 5, async (id) => {
+    const deleteResults = await pool(toDelete, WRITE_CONCURRENCY, async (id) => {
         const res = await request(`${CAL_BASE}/${encodeURIComponent(id)}`, { method: 'DELETE' });
         if (!res.ok && res.status !== 410 && res.status !== 404) {
-            throw new Error(`delete ${id}: ${res.status}`);
+            throw new Error(`delete ${id}: ${explain(res)}`);
         }
         return 'deleted';
     });
@@ -477,13 +527,19 @@ async function pushToSupabase(cohortId, scheduleData) {
     }
 
     try {
-        const res = await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/timetables`, {
+        // on_conflict is explicit: "resolution=merge-duplicates" only upserts
+        // if PostgREST can resolve a conflict target. Without a UNIQUE
+        // constraint on cohort_id this silently degrades to a plain INSERT and
+        // the table grows a new row on every sync.
+        const url = `${CONFIG.SUPABASE_URL}/rest/v1/timetables?on_conflict=cohort_id`;
+
+        const res = await fetch(url, {
             method: 'POST',
             headers: {
                 apikey: CONFIG.SUPABASE_KEY,
                 Authorization: `Bearer ${CONFIG.SUPABASE_KEY}`,
                 'Content-Type': 'application/json',
-                Prefer: 'resolution=merge-duplicates'
+                Prefer: 'resolution=merge-duplicates,return=minimal'
             },
             body: JSON.stringify({
                 cohort_id: cohortId,

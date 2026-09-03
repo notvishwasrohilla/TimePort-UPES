@@ -73,10 +73,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const cal = report.calendar || {};
         const line = document.createElement('div');
 
+        // A report with no age looks current even when it's hours old, which
+        // is exactly the kind of silently-wrong output we're trying to avoid.
+        const ageMs = Date.now() - (report.at || 0);
+        const mins = Math.floor(ageMs / 60000);
+        const age = !report.at ? ''
+            : mins < 1 ? ' · just now'
+            : mins < 60 ? ` · ${mins}m ago`
+            : ` · ${Math.floor(mins / 60)}h ago`;
+
         if (report.ok) {
             line.className = 'report-line report-ok';
             line.textContent =
-                `${cal.inserted || 0} added · ${cal.updated || 0} updated · ${cal.deleted || 0} removed`;
+                `${cal.inserted || 0} added · ${cal.updated || 0} updated · ${cal.deleted || 0} removed${age}`;
             reportBox.appendChild(line);
             return;
         }
@@ -84,7 +93,7 @@ document.addEventListener('DOMContentLoaded', () => {
         line.className = 'report-line report-warn';
         line.textContent =
             `${cal.inserted || 0} added · ${cal.updated || 0} updated · ` +
-            `${(report.errors || []).length} problem(s)`;
+            `${(report.errors || []).length} problem(s)${age}`;
         reportBox.appendChild(line);
 
         (report.errors || []).slice(0, 4).forEach((err) => {
@@ -97,7 +106,12 @@ document.addEventListener('DOMContentLoaded', () => {
         (cal.skipped || []).slice(0, 4).forEach((s) => {
             const li = document.createElement('div');
             li.className = 'report-error';
-            li.textContent = `Skipped ${s.subject}: ${s.reason}`;
+            // Include the raw values: knowing a date failed is useless without
+            // knowing what the value actually was.
+            const raw = s.raw
+                ? ` [date=${JSON.stringify(s.raw.date)} start=${JSON.stringify(s.raw.start)} end=${JSON.stringify(s.raw.end)}]`
+                : '';
+            li.textContent = `Skipped ${s.subject}: ${s.reason}${raw}`;
             reportBox.appendChild(li);
         });
     }

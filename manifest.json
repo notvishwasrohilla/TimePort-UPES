@@ -9,7 +9,8 @@
     "identity"
   ],
   "host_permissions": [
-    "https://myupes-beta.upes.ac.in/*"
+    "https://myupes-beta.upes.ac.in/*",
+    "https://tzxkpfitveofqkfcfkcz.supabase.co/*"
   ],
   "content_scripts": [
     {
